@@ -1,0 +1,6 @@
+roms/
+venv/
+
+__pycache__
+*.pyc
+
