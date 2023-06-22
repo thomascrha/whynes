@@ -1,11 +1,8 @@
-import argparse
-import sys
 import enum
+import sys
 from typing import Annotated, List
-import os
-from pydantic import FilePath
-from cpu import CPUInstructions
 from logger import get_logger
+from pydantic import FilePath
 
 
 class CartridgeFormat(str, enum.Enum):
@@ -104,6 +101,10 @@ class Cartridge:
     header: Annotated[List[bytes], HEX_16]
     prg_rom: List[bytes]
     chr_rom: List[bytes]
+    prg_rom_size: int
+    chr_rom_size: int
+    prg_rom_size_multiplier: int
+    chr_rom_size_multiplier: int
 
     def __init__(self, rom_path: FilePath):
         self.logger = get_logger(self.__class__.__name__)
@@ -127,38 +128,20 @@ class Cartridge:
 
         # print(HeaderFlags6(self.header[6]))
 
-        self.logger.info(
-            f"The PRG ROM size is {int(self.prg_rom_size_multiplier)}x16Kb = {hex(self.prg_rom_size)}"
-        )
-        self.logger.info(
-            f"The CHR ROM size is {int(self.chr_rom_size_multiplier)}x8Kb = {hex(self.prg_rom_size)}"
-        )
+        self.logger.info(f"The PRG ROM size is {int(self.prg_rom_size_multiplier)}x16Kb = {hex(self.prg_rom_size)}")
+        self.logger.info(f"The CHR ROM size is {int(self.chr_rom_size_multiplier)}x8Kb = {hex(self.prg_rom_size)}")
 
         if self.type in [CartridgeFormat.ines, CartridgeFormat.ines07]:
             self.logger.info(HeaderFlags6(self.header[6]))
             self.logger.info(HeaderFlags9iNES(self.header[9]))
 
         # PRG ROM is contained in 16Kb chunks after the header
-        self.prg_rom = self.raw_bytes[
-            HEX_16 : (HEX_16 * KB) * self.prg_rom_size_multiplier
-        ]
+        self.prg_rom = self.raw_bytes[HEX_16 : (HEX_16 * KB) * self.prg_rom_size_multiplier]
 
         # CHR ROM is contained in 8kb chunks after the header and the PGR ROM
         self.chr_rom = self.raw_bytes[
-            HEX_16
-            + (HEX_16 * KB)
-            * self.prg_rom_size_multiplier : (HEX_8 * KB)
-            * self.chr_rom_size_multiplier
+            HEX_16 + (HEX_16 * KB) * self.prg_rom_size_multiplier : (HEX_8 * KB) * self.chr_rom_size_multiplier
         ]
-
-    def convert_instructions(self):
-        for i, instruction_byte in enumerate(self.prg_rom):
-            if i == 10:
-                break
-            opcode = CPUInstructions.get_opcode(instruction_byte)
-
-            print(opcode.value)
-
 
     def validate(self, rom_path) -> List[bytes]:
         # Only accept either iNes or NES2.0 type files
@@ -169,14 +152,9 @@ class Cartridge:
 
         # this is true of ALL the NES rom formats - if this true then the ROM file provided is upto spec
         if not (
-            chr(raw_bytes[0]) == "N"
-            and chr(raw_bytes[1]) == "E"
-            and chr(raw_bytes[2]) == "S"
-            and raw_bytes[3] == 0x1A
+            chr(raw_bytes[0]) == "N" and chr(raw_bytes[1]) == "E" and chr(raw_bytes[2]) == "S" and raw_bytes[3] == 0x1A
         ):
-            self.logger.critical(
-                f"The provided ROM file {rom_path} can't be identified"
-            )
+            self.logger.critical(f"The provided ROM file {rom_path} can't be identified")
             sys.exit(1)
 
         return raw_bytes
@@ -208,20 +186,3 @@ class Cartridge:
             type = CartridgeFormat.ines
 
         return type
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter
-    )
-    parser.add_argument(
-        "-r",
-        "--rom-path",
-        type=str,
-        help="The filepath of the rom being loaded into the cartridge",
-    )
-
-    args = parser.parse_args()
-
-    cart = Cartridge(**args.__dict__)
-    cart.convert_instructions()
