@@ -99,12 +99,12 @@ class Cartridge:
 
     type: CartridgeFormat
     header: Annotated[List[bytes], HEX_16]
-    prg_rom: List[bytes]
-    chr_rom: List[bytes]
-    prg_rom_size: int
-    chr_rom_size: int
-    prg_rom_size_multiplier: int
-    chr_rom_size_multiplier: int
+    # program_rom: List[bytes]
+    # character_rom: List[bytes]
+    program_rom_size: int
+    character_rom_size: int
+    program_rom_size_multiplier: int
+    character_rom_size_multiplier: int
 
     def __init__(self, rom_path: FilePath):
         self.logger = get_logger(self.__class__.__name__)
@@ -115,32 +115,32 @@ class Cartridge:
 
         self.logger.debug(f"The ROM at {self.rom_path} is of type {self.type}")
 
-        self.load()
-
-    def load(self):
         self.header = self.raw_bytes[:HEX_16]
 
-        self.prg_rom_size_multiplier = self.header[4]
-        self.prg_rom_size = self.prg_rom_size_multiplier * HEX_16
+        self.program_rom_size_multiplier = self.header[4]
+        self.program_rom_size = self.program_rom_size_multiplier * HEX_16
 
-        self.chr_rom_size_multiplier = self.header[5]
-        self.chr_rom_size = self.chr_rom_size_multiplier * HEX_8
+        self.character_rom_size_multiplier = self.header[5]
+        self.character_rom_size = self.character_rom_size_multiplier * HEX_8
 
-        # print(HeaderFlags6(self.header[6]))
-
-        self.logger.info(f"The PRG ROM size is {int(self.prg_rom_size_multiplier)}x16Kb = {hex(self.prg_rom_size)}")
-        self.logger.info(f"The CHR ROM size is {int(self.chr_rom_size_multiplier)}x8Kb = {hex(self.prg_rom_size)}")
+        self.logger.debug(
+            f"The PRG ROM size is {int(self.program_rom_size_multiplier)}x16Kb = {hex(self.program_rom_size)}"
+        )
+        self.logger.debug(
+            f"The CHR ROM size is {int(self.character_rom_size_multiplier)}x8Kb = {hex(self.program_rom_size)}"
+        )
 
         if self.type in [CartridgeFormat.ines, CartridgeFormat.ines07]:
-            self.logger.info(HeaderFlags6(self.header[6]))
-            self.logger.info(HeaderFlags9iNES(self.header[9]))
+            self.logger.debug(HeaderFlags6(self.header[6]))
+            self.logger.debug(HeaderFlags9iNES(self.header[9]))
 
         # PRG ROM is contained in 16Kb chunks after the header
-        self.prg_rom = self.raw_bytes[HEX_16 : (HEX_16 * KB) * self.prg_rom_size_multiplier]
+        self.program_rom = self.raw_bytes[HEX_16 : (HEX_16 * KB) * self.program_rom_size_multiplier]
 
         # CHR ROM is contained in 8kb chunks after the header and the PGR ROM
-        self.chr_rom = self.raw_bytes[
-            HEX_16 + (HEX_16 * KB) * self.prg_rom_size_multiplier : (HEX_8 * KB) * self.chr_rom_size_multiplier
+        self.character_rom = self.raw_bytes[
+            HEX_16
+            + (HEX_16 * KB) * self.program_rom_size_multiplier : (HEX_8 * KB) * self.character_rom_size_multiplier
         ]
 
     def validate(self, rom_path) -> List[bytes]:

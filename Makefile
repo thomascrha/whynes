@@ -7,5 +7,5 @@ setup-local:
 .PHONY: setup-local
 
 run:
-	.venv/bin/python3 console.py
+	.venv/bin/python3 console.py -r roms/ines-1x16PGR-1x8kCHR.rom
 .PHONY: run

@@ -13,9 +13,10 @@ class Opcode:
 
 
 class Instruction:
-    def __init__(self, opcode: Opcode, operand: Optional[int]):
+    def __init__(self, opcode: Opcode, process, operand: Optional[int] = None):
         self.opcode = opcode
         self.operand = operand
+        self.process = process
 
     def __str__(self):
         return f"{self.opcode} ({hex(self.operand)})"
