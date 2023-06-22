@@ -1,7 +1,9 @@
 import functools
 import logging
 import os
+from os.path import join
 from copy import copy
+
 
 
 class ColoredFormatter(logging.Formatter):
@@ -47,10 +49,10 @@ class ColoredFormatter(logging.Formatter):
 def get_logger(name: str) -> logging.Logger:
 
     logger = logging.getLogger(name)
-    logger.setLevel(os.environ.get("LOGGING_LEVEL", logging.DEBUG).upper())
+    logger.setLevel(logging.DEBUG)
 
     consoleHandler = logging.StreamHandler()
-    consoleHandler.setLevel(os.environ.get("LOGGING_LEVEL", logging.DEBUG).upper())
+    consoleHandler.setLevel(logging.DEBUG)
 
     logger.addHandler(consoleHandler)
 
