@@ -1,3 +1,4 @@
+import enum
 from cartrige import Cartridge
 from instructions import Instructions
 from logger import get_logger
@@ -6,37 +7,90 @@ from memory import Memory
 logger = get_logger(__name__)
 
 
+class Flags(enum.Enum):
+    CARRY = 0
+    ZERO = 1
+    INTERRUPT = 2
+    DECIMAL = 3
+    BREAK = 4
+    UNUSED = 5
+    OVERFLOW = 6
+    NEGATIVE = 7
+
+
 class CPU:
-    program_counter: int
-    stack_pointer: int
-    accumulator: int
-    index_x: int
-    index_y: int
-    status: int
-
     def __init__(self, memory: Memory):
+        # registers
+        # accumulator is 8 bits
+        self.a = 0x00
+        # x and y registers are 8 bits
+        self.x = 0x00
+        self.y = 0x00
+        # program counter is 16 bits but the memory is 64K
+        self.program_counter = 0x0000
+        # stack pointer is 8 bits but the stack is 256 bytes
+        self.stack_pointer = 0xFF
+        # stats register is 8 bits where is bit is repersented by the Flags enum
+        # 0x00 = 0b00100000
+        # 0x01 = 0b00100001
+        # 0x02 = 0b00100010
+        # 0x03 = 0b00100011
+        # 0x04 = 0b00100100
+        # 0x05 = 0b00100101
+        # 0x06 = 0b00100110
+        # 0x07 = 0b00100111
+        self.status = 0x00
+
         self.memory = memory
-        self.reset()
 
-    def reset(self):
-        self.program_counter = 0
-        self.stack_pointer = 0
-        self.accumulator = 0
-        self.status = 0
-        self.x_register = 0
-        self.y_register = 0
+    # Flag operations
+    def set_flag(self, flag: Flags):
+        self.status |= 1 << flag.value
 
-    def compute_program_counter(self, opcode: Instructions.Opcodes) -> int:
-        return self.program_counter + opcode.value.argument_length + 1
+    def clear_flag(self, flag: Flags):
+        self.status &= ~(1 << flag.value)
+
+    def get_flag(self, flag: Flags) -> bool:
+        return bool(self.status & (1 << flag.value))
+
+    def push(self, value):
+        # Decrement the stack pointer
+        self.stack_pointer -= 1
+
+        # Write the value to the stack
+        self.memory.write(0x0100 + self.stack_pointer, value & 0xFF)
+
+    def pull(self):
+        # Read the value from the stack
+        value = self.memory.read(0x0100 + self.stack_pointer)
+
+        # Increment the stack pointer
+        self.stack_pointer += 1
+
+        return value
+
+    def pull_word(self):
+        # Pull a word from the stack
+        # (SP + 1) -> PCL
+        # (SP + 2) -> PCH
+
+        # Pull the low byte from the stack
+        low_byte = self.pull()
+
+        # Pull the high byte from the stack
+        high_byte = self.pull()
+
+        # Return the word
+        return (high_byte << 8) | low_byte
 
     def decompile_program(self):
         while self.program_counter < self.memory.cartridge.program_rom_size:
             logger.debug(
                 f"PC: {hex(self.program_counter)}"
                 f" SP: {hex(self.stack_pointer)}"
-                f" A: {hex(self.accumulator)}"
-                f" X: {hex(self.x_register)}"
-                f" Y: {hex(self.y_register)}"
+                f" A: {hex(self.a)}"
+                f" X: {hex(self.x)}"
+                f" Y: {hex(self.y)}"
                 f" Status: {hex(self.status)}"
             )
             opcode_hex = self.memory.program_rom[self.program_counter]
@@ -45,611 +99,1039 @@ class CPU:
             if opcode.value.argument_length > 0:
                 operand = self.memory.program_rom[self.program_counter + opcode.value.argument_length]
 
-            if hasattr(self, opcode.name.lower()):
+            if hasattr(self, opcode.name):
                 logger.info(f"{opcode.name} ({operand if operand else ''})")
                 if operand:
-                    getattr(self, opcode.name.lower())(operand)
+                    getattr(self, opcode.name)(operand)
                 else:
-                    getattr(self, opcode.name.lower())()
+                    getattr(self, opcode.name)()
+            else:
+                logger.error(f"FUCK {opcode}")
+                raise SystemError
 
-            self.program_counter = self.compute_program_counter(opcode)
+    def ADC(self, operand):
+        # Add Memory to Accumulator with Carry
+        # A + M + C -> A, C
 
-    def stack_push(self, value: int) -> None:
-        """
-        Pushes a value to the stack.
-        """
-        self.memory.memory[0x0100 + self.stack_pointer] = value
-        self.stack_pointer -= 1
+        # Fetch the value from memory
+        value = self.memory.read(operand)
 
-    def stack_pop(self) -> int:
-        """
-        Pops the stack and returns the value.
-        """
-        self.stack_pointer += 1
-        return self.memory.memory[0x0100 + self.stack_pointer]
+        # Perform the addition
+        sum_value = self.a + value + self.get_flag(Flags.CARRY)
 
-    def adc(self, operand: int) -> None:
-        """
-        Adds the immediate value following the ADC opcode from memory to the
-        accumulator of the CPU. The program counter (self.pc) is incremented to
-        point to the next instruction after the immediate value.
-        """
-        self.accumulator += operand
+        # Set the Carry flag if necessary
+        if sum_value > 0xFF:
+            self.set_flag(Flags.CARRY)
+        else:
+            self.clear_flag(Flags.CARRY)
 
-    def and_(self, operand: int) -> None:
-        """
-        Performs a bitwise AND operation on the immediate value following the
-        AND opcode and the accumulator of the CPU. The program counter (self.pc)
-        is incremented to point to the next instruction after the immediate
-        value.
-        """
-        self.accumulator &= operand
+        # Update the Zero flag
+        if (sum_value & 0xFF) == 0:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
 
-    def asl(self) -> None:
-        """
-        Shifts the bits in the accumulator of the CPU to the left by one bit.
-        """
-        self.accumulator <<= 1
+        # Update the Overflow flag
+        if (self.a ^ value) & 0x80 == 0 and (self.a ^ sum_value) & 0x80 != 0:
+            self.set_flag(Flags.OVERFLOW)
+        else:
+            self.clear_flag(Flags.OVERFLOW)
 
-    def bcc(self, operand: int) -> None:
-        """
-        Branches to the relative address following the BCC opcode if the carry
-        flag is not set.
-        """
-        if not self.status & 0b00000001:
+        # Update the Negative flag
+        if sum_value & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Store the result in the accumulator
+        self.a = sum_value & 0xFF
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def AND(self, operand):
+        # AND Memory with Accumulator
+        # A AND M -> A
+
+        # Fetch the value from memory AND with the accumulator
+        self.a &= self.memory.read(operand)
+
+        # Set the Zero flag if necessary
+        if self.a == 0x00:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if self.a & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def ASL(self, operand):
+        # Shift Left One Bit (Memory or Accumulator)
+        # C <- [76543210] <- 0
+
+        # Fetch the value from memory or the accumulator
+        value = self.memory.read(operand)
+
+        # Move bit 7 to the carry flag
+        if value & 0x80 != 0:
+            self.set_flag(Flags.CARRY)
+        else:
+            self.clear_flag(Flags.CARRY)
+
+        # Shift left by 1
+        value = (value << 1) & 0xFF
+
+        # Store the value in memory or the accumulator
+        self.memory.write(operand, value)
+
+        # Set the Zero flag if necessary
+        if value == 0x00:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if value & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def BCC(self, operand):
+        # Branch on Carry Clear
+        # branch on C = 0
+
+        if self.get_flag(Flags.CARRY) == 0:
             self.program_counter += operand
         else:
             self.program_counter += 1
 
-    def beq(self, operand: int) -> None:
-        """
-        Branches to the relative address following the BEQ opcode if the zero
-        flag is set.
-        """
-        if self.status & 0b00000010:
+    def BCS(self, operand):
+        # Branch on Carry Set
+        # branch on C = 1
+
+        if self.get_flag(Flags.CARRY) == 1:
             self.program_counter += operand
         else:
             self.program_counter += 1
 
-    def bit(self, operand: int) -> None:
-        """
-        Performs a bitwise AND operation on the immediate value following the
-        BIT opcode and the accumulator of the CPU. The zero flag is set if the
-        result of the bitwise AND operation is zero.
-        """
-        self.accumulator &= operand
-        if self.accumulator == 0:
-            self.status |= 0b00000010
-        else:
-            self.status &= 0b11111101
+    def BEQ(self, operand):
+        # Branch on Result Zero
+        # branch on Z = 1
 
-    def bmi(self, operand: int) -> None:
-        """
-        Branches to the relative address following the BMI opcode if the
-        negative flag is set.
-        """
-        if self.status & 0b10000000:
+        if self.get_flag(Flags.ZERO) == 1:
             self.program_counter += operand
         else:
             self.program_counter += 1
 
-    def bne(self, operand: int) -> None:
-        """
-        Branches to the relative address following the BNE opcode if the zero
-        flag is not set.
-        """
-        if not self.status & 0b00000010:
+    def BIT(self, operand):
+        # Test Bits in Memory with Accumulator
+        # A AND M, M7 -> N, M6 -> V
+
+        # Fetch the value from memory AND with the accumulator
+        value = self.memory.read(operand)
+        self.a &= value
+
+        # Set the Zero flag if necessary
+        if self.a == 0x00:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if value & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Set the Overflow flag if necessary
+        if value & 0x40 != 0:
+            self.set_flag(Flags.OVERFLOW)
+        else:
+            self.clear_flag(Flags.OVERFLOW)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def BMI(self, operand):
+        # Branch on Result Minus
+        # branch on N = 1
+
+        if self.get_flag(Flags.NEGATIVE) == 1:
             self.program_counter += operand
         else:
             self.program_counter += 1
 
-    def bpl(self, operand: int) -> None:
-        """
-        Branches to the relative address following the BPL opcode if the
-        negative flag is not set.
-        """
-        if not self.status & 0b10000000:
+    def BNE(self, operand):
+        # Branch on Result not Zero
+        # branch on Z = 0
+
+        if self.get_flag(Flags.ZERO) == 0:
             self.program_counter += operand
         else:
             self.program_counter += 1
 
-    def brk(self) -> None:
-        """
-        Sets the break flag of the CPU.
-        """
-        self.status |= 0b00010000
+    def BPL(self, operand):
+        # Branch on Result Plus
+        # branch on N = 0
 
-    def bvc(self, operand: int) -> None:
-        """
-        Branches to the relative address following the BVC opcode if the
-        overflow flag is not set.
-        """
-        if not self.status & 0b01000000:
+        if self.get_flag(Flags.NEGATIVE) == 0:
             self.program_counter += operand
         else:
             self.program_counter += 1
 
-    def bvs(self, operand: int) -> None:
-        """
-        Branches to the relative address following the BVS opcode if the
-        overflow flag is set.
-        """
-        if self.status & 0b01000000:
+    def BRK(self):
+        # Force Break
+        # interrupt, push PC+2, push SR
+
+        # Increment the program counter
+        self.program_counter += 1
+
+        # Push the program counter onto the stack
+        self.push(self.program_counter >> 8)
+        self.push(self.program_counter & 0xFF)
+
+        # Push the status register onto the stack
+        self.push(self.status_register | 0x10)
+
+        # Set the Interrupt flag
+        self.set_flag(Flags.INTERRUPT)
+
+        # Jump to the interrupt vector
+        self.program_counter = self.memory.read_word(0xFFFE)
+
+    def BVC(self, operand):
+        # Branch on Overflow Clear
+        # branch on V = 0
+
+        if self.get_flag(Flags.OVERFLOW) == 0:
             self.program_counter += operand
         else:
             self.program_counter += 1
 
-    def clc(self) -> None:
-        """
-        Clears the carry flag of the CPU.
-        """
-        self.status &= 0b11111110
+    def BVS(self, operand):
+        # Branch on Overflow Set
+        # branch on V = 1
 
-    def cld(self) -> None:
-        """
-        Clears the decimal flag of the CPU.
-        """
-        self.status &= 0b11110111
-
-    def cli(self) -> None:
-        """
-        Clears the interrupt flag of the CPU.
-        """
-        self.status &= 0b11111011
-
-    def clv(self) -> None:
-        """
-        Clears the overflow flag of the CPU.
-        """
-        self.status &= 0b10111111
-
-    def cmp(self, operand: int) -> None:
-        """
-        Compares the immediate value following the CMP opcode with the
-        accumulator of the CPU. The zero flag is set if the values are equal.
-        The carry flag is set if the accumulator is greater than the immediate
-        value.
-        """
-        if self.accumulator == operand:
-            self.status |= 0b00000010
+        if self.get_flag(Flags.OVERFLOW) == 1:
+            self.program_counter += operand
         else:
-            self.status &= 0b11111101
-        if self.accumulator > operand:
-            self.status |= 0b00000001
+            self.program_counter += 1
+
+    def CLC(self):
+        # Clear Carry Flag
+        # 0 -> C
+
+        self.clear_flag(Flags.CARRY)
+        self.program_counter += 1
+
+    def CLD(self):
+        # Clear Decimal Mode
+        # 0 -> D
+
+        self.clear_flag(Flags.DECIMAL)
+        self.program_counter += 1
+
+    def CLI(self):
+        # Clear Interrupt Disable Bit
+        # 0 -> I
+
+        self.clear_flag(Flags.INTERRUPT)
+        self.program_counter += 1
+
+    def CLV(self):
+        # Clear Overflow Flag
+        # 0 -> V
+
+        self.clear_flag(Flags.OVERFLOW)
+        self.program_counter += 1
+
+    def CMP(self, operand):
+        # Compare Memory and Accumulator
+        # A - M
+
+        # Fetch the value from memory
+        value = self.memory.read(operand)
+
+        # Set the Carry flag if necessary
+        if self.a >= value:
+            self.set_flag(Flags.CARRY)
         else:
-            self.status &= 0b11111110
+            self.clear_flag(Flags.CARRY)
 
-    def cpx(self, operand: int) -> None:
-        """
-        Compares the immediate value following the CPX opcode with the X
-        register of the CPU. The zero flag is set if the values are equal. The
-        carry flag is set if the X register is greater than the immediate
-        value.
-        """
-        if self.x_register == operand:
-            self.status |= 0b00000010
+        # Set the Zero flag if necessary
+        if self.a == value:
+            self.set_flag(Flags.ZERO)
         else:
-            self.status &= 0b11111101
-        if self.x_register > operand:
-            self.status |= 0b00000001
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if (self.a - value) & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
         else:
-            self.status &= 0b11111110
+            self.clear_flag(Flags.NEGATIVE)
 
-    def cpy(self, operand: int) -> None:
-        """
-        Compares the immediate value following the CPY opcode with the Y
-        register of the CPU. The zero flag is set if the values are equal. The
-        carry flag is set if the Y register is greater than the immediate
-        value.
-        """
-        if self.y_register == operand:
-            self.status |= 0b00000010
+        # Increment the program counter
+        self.program_counter += 1
+
+    def CPX(self, operand):
+        # Compare Memory and Index X
+        # X - M
+
+        # Fetch the value from memory
+        value = self.memory.read(operand)
+
+        # Set the Carry flag if necessary
+        if self.x >= value:
+            self.set_flag(Flags.CARRY)
         else:
-            self.status &= 0b11111101
-        if self.y_register > operand:
-            self.status |= 0b00000001
+            self.clear_flag(Flags.CARRY)
+
+        # Set the Zero flag if necessary
+        if self.x == value:
+            self.set_flag(Flags.ZERO)
         else:
-            self.status &= 0b11111110
+            self.clear_flag(Flags.ZERO)
 
-    def dec(self, operand: int) -> None:
-        """
-        Decrements the value at the address following the DEC opcode by one.
-        """
-        operand -= 1
+        # Set the Negative flag if necessary
+        if (self.x - value) & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
 
-    def dex(self) -> None:
-        """
-        Decrements the X register of the CPU by one.
-        """
-        self.x_register -= 1
+        # Increment the program counter
+        self.program_counter += 1
 
-    def dey(self) -> None:
-        """
-        Decrements the Y register of the CPU by one.
-        """
-        self.y_register -= 1
+    def CPY(self, operand):
+        # Compare Memory and Index Y
+        # Y - M
 
-    def eor(self, operand: int) -> None:
-        """
-        Performs a bitwise XOR operation on the immediate value following the
-        EOR opcode and the accumulator of the CPU.
-        """
-        self.accumulator ^= operand
+        # Fetch the value from memory
+        value = self.memory.read(operand)
 
-    def inc(self, operand: int) -> None:
-        """
-        Increments the value at the address following the INC opcode by one.
-        """
-        operand += 1
+        # Set the Carry flag if necessary
+        if self.y >= value:
+            self.set_flag(Flags.CARRY)
+        else:
+            self.clear_flag(Flags.CARRY)
 
-    def inx(self) -> None:
-        """
-        Increments the X register of the CPU by one.
-        """
-        self.x_register += 1
+        # Set the Zero flag if necessary
+        if self.y == value:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
 
-    def iny(self) -> None:
-        """
-        Increments the Y register of the CPU by one.
-        """
-        self.y_register += 1
+        # Set the Negative flag if necessary
+        if (self.y - value) & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
 
-    def jmp(self, operand: int) -> None:
-        """
-        Jumps to the address following the JMP opcode.
-        """
+        # Increment the program counter
+        self.program_counter += 1
+
+    def DEC(self, operand):
+        # Decrement Memory by One
+        # M - 1 -> M
+
+        # Fetch the value from memory
+        value = self.memory.read(operand)
+
+        # Decrement the value
+        value -= 1
+
+        # Write the value back to memory
+        self.memory.write(operand, value)
+
+        # Set the Zero flag if necessary
+        if value == 0x00:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if value & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def DEX(self):
+        # Decrement Index X by One
+        # X - 1 -> X
+
+        # Decrement the value
+        self.x -= 1
+
+        # Set the Zero flag if necessary
+        if self.x == 0x00:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if self.x & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def DEY(self):
+        # Decrement Index Y by One
+        # Y - 1 -> Y
+
+        # Decrement the value
+        self.y -= 1
+
+        # Set the Zero flag if necessary
+        if self.y == 0x00:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if self.y & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def EOR(self, operand):
+        # Exclusive-OR Memory with Accumulator
+        # A EOR M -> A
+
+        # Fetch the value from memory
+        value = self.memory.read(operand)
+
+        # Perform the exclusive-or
+        self.a ^= value
+
+        # Set the Zero flag if necessary
+        if self.a == 0x00:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if self.a & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def INC(self, operand):
+        # Increment Memory by One
+        # M + 1 -> M
+
+        # Fetch the value from memory
+        value = self.memory.read(operand)
+
+        # Increment the value
+        value += 1
+
+        # Write the value back to memory
+        self.memory.write(operand, value)
+
+        # Set the Zero flag if necessary
+        if value == 0x00:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if value & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def INX(self):
+        # Increment Index X by One
+        # X + 1 -> X
+
+        # Increment the value
+        self.x += 1
+
+        # Set the Zero flag if necessary
+        if self.x == 0x00:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if self.x & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def INY(self):
+        # Increment Index Y by One
+        # Y + 1 -> Y
+
+        # Increment the value
+        self.y += 1
+
+        # Set the Zero flag if necessary
+        if self.y == 0x00:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if self.y & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def JMP(self, operand):
+        # Jump to New Location
+        # (PC + 1) -> PCL
+        # (PC + 2) -> PCH
+
+        # Set the program counter
         self.program_counter = operand
 
-    def jsr(self, operand: int) -> None:
-        """
-        Pushes the address of the next instruction to the stack and jumps to
-        the address following the JSR opcode.
-        """
-        self.stack_push(self.program_counter)
+    def JSR(self, operand):
+        # Jump to New Location Saving Return Address
+        # (PC + 1) -> PCL
+        # (PC + 2) -> PCH
+        # Push (PC + 2) onto stack
+        # PCL -> (SP)
+        # PCH -> (SP + 1)
+
+        # Push the program counter onto the stack
+        self.push(self.program_counter >> 8)
+        self.push(self.program_counter & 0xFF)
+
+        # Set the program counter
         self.program_counter = operand
 
-    def lda(self, operand: int) -> None:
-        """
-        Loads the immediate value following the LDA opcode into the accumulator
-        of the CPU. The zero flag is set if the accumulator is zero. The
-        negative flag is set if the accumulator is negative.
-        """
-        self.accumulator = operand
-        if self.accumulator == 0:
-            self.status |= 0b00000010
-        else:
-            self.status &= 0b11111101
-        if self.accumulator & 0b10000000:
-            self.status |= 0b10000000
-        else:
-            self.status &= 0b01111111
+    def LDA(self, operand):
+        # Load Accumulator with Memory
+        # M -> A
 
-    def ldx(self, operand: int) -> None:
-        """
-        Loads the immediate value following the LDX opcode into the X register
-        of the CPU. The zero flag is set if the X register is zero. The
-        negative flag is set if the X register is negative.
-        """
-        self.x_register = operand
-        if self.x_register == 0:
-            self.status |= 0b00000010
+        # Fetch the value from memory
+        value = self.memory.read(operand)
+
+        # Load the value into the accumulator
+        self.a = value
+
+        # Set the Zero flag if necessary
+        if self.a == 0x00:
+            self.set_flag(Flags.ZERO)
         else:
-            self.status &= 0b11111101
-        if self.x_register & 0b10000000:
-            self.status |= 0b10000000
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if self.a & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
         else:
-            self.status &= 0b01111111
+            self.clear_flag(Flags.NEGATIVE)
 
-    def ldy(self, operand: int) -> None:
-        """
-        Loads the immediate value following the LDY opcode into the Y register
-        of the CPU. The zero flag is set if the Y register is zero. The
-        negative flag is set if the Y register is negative.
-        """
-        self.y_register = operand
-        if self.y_register == 0:
-            self.status |= 0b00000010
+        # Increment the program counter
+        self.program_counter += 1
+
+    def LDX(self, operand):
+        # Load Index X with Memory
+        # M -> X
+
+        # Fetch the value from memory
+        value = self.memory.read(operand)
+
+        # Load the value into the index register
+        self.x = value
+
+        # Set the Zero flag if necessary
+        if self.x == 0x00:
+            self.set_flag(Flags.ZERO)
         else:
-            self.status &= 0b11111101
-        if self.y_register & 0b10000000:
-            self.status |= 0b10000000
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if self.x & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
         else:
-            self.status &= 0b01111111
+            self.clear_flag(Flags.NEGATIVE)
 
-    def lsr(self, operand: int) -> None:
-        """
-        Shifts the immediate value following the LSR opcode one bit to the
-        right. The zero flag is set if the value is zero. The carry flag is set
-        if the value is odd.
-        """
-        if operand & 0b00000001:
-            self.status |= 0b00000001
+        # Increment the program counter
+        self.program_counter += 1
+
+    def LDY(self, operand):
+        # Load Index Y with Memory
+        # M -> Y
+
+        # Fetch the value from memory
+        value = self.memory.read(operand)
+
+        # Load the value into the index register
+        self.y = value
+
+        # Set the Zero flag if necessary
+        if self.y == 0x00:
+            self.set_flag(Flags.ZERO)
         else:
-            self.status &= 0b11111110
-        operand >>= 1
-        if operand == 0:
-            self.status |= 0b00000010
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if self.y & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
         else:
-            self.status &= 0b11111101
+            self.clear_flag(Flags.NEGATIVE)
 
-    def nop(self) -> None:
-        """
-        Does nothing.
-        """
-        pass
+        # Increment the program counter
+        self.program_counter += 1
 
-    def ora(self, operand: int) -> None:
-        """
-        Performs a bitwise OR operation on the immediate value following the
-        ORA opcode and the accumulator of the CPU. The zero flag is set if the
-        accumulator is zero. The negative flag is set if the accumulator is
-        negative.
-        """
-        self.accumulator |= operand
-        if self.accumulator == 0:
-            self.status |= 0b00000010
+    def LSR(self, operand):
+        # Shift One Bit Right (Memory or Accumulator)
+        # 0 -> [76543210] -> C
+
+        # Fetch the value from memory
+        value = self.memory.read(operand)
+
+        # Shift the value right
+        value >>= 1
+
+        # Write the value back to memory
+        self.memory.write(operand, value)
+
+        # Set the Carry flag if necessary
+        if value & 0x01 != 0:
+            self.set_flag(Flags.CARRY)
         else:
-            self.status &= 0b11111101
-        if self.accumulator & 0b10000000:
-            self.status |= 0b10000000
+            self.clear_flag(Flags.CARRY)
+
+        # Set the Zero flag if necessary
+        if value == 0x00:
+            self.set_flag(Flags.ZERO)
         else:
-            self.status &= 0b01111111
+            self.clear_flag(Flags.ZERO)
 
-    def pha(self) -> None:
-        """
-        Pushes the accumulator of the CPU to the stack.
-        """
-        self.stack_push(self.accumulator)
+        # Set the Negative flag to zero
+        self.clear_flag(Flags.NEGATIVE)
 
-    def php(self) -> None:
-        """
-        Pushes the status register of the CPU to the stack.
-        """
-        self.stack_push(self.status)
+        # Increment the program counter
+        self.program_counter += 1
 
-    def pla(self) -> None:
-        """
-        Pops the stack and loads the value into the accumulator of the CPU. The
-        zero flag is set if the accumulator is zero. The negative flag is set
-        if the accumulator is negative.
-        """
-        self.accumulator = self.stack_pop()
-        if self.accumulator == 0:
-            self.status |= 0b00000010
+    def NOP(self):
+        # No Operation
+        # --- -> ---
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def ORA(self, operand):
+        # OR Memory with Accumulator
+        # A V M -> A
+
+        # Fetch the value from memory
+        value = self.memory.read(operand)
+
+        # OR the value with the accumulator
+        self.a |= value
+
+        # Set the Zero flag if necessary
+        if self.a == 0x00:
+            self.set_flag(Flags.ZERO)
         else:
-            self.status &= 0b11111101
-        if self.accumulator & 0b10000000:
-            self.status |= 0b10000000
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if self.a & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
         else:
-            self.status &= 0b01111111
+            self.clear_flag(Flags.NEGATIVE)
 
-    def plp(self) -> None:
-        """
-        Pops the stack and loads the value into the status register of the CPU.
-        """
-        self.status = self.stack_pop()
+        # Increment the program counter
+        self.program_counter += 1
 
-    def rol(self, operand: int) -> None:
-        """
-        Shifts the immediate value following the ROL opcode one bit to the left
-        and adds the carry flag. The zero flag is set if the value is zero. The
-        carry flag is set if the value is odd.
-        """
-        if self.status & 0b00000001:
-            operand |= 0b10000000
+    def PHA(self):
+        # Push Accumulator on Stack
+        # A -> (SP)
+
+        # Push the accumulator onto the stack
+        self.push(self.a)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def PHP(self):
+        # Push Processor Status on Stack
+        # P -> (SP)
+
+        # Push the processor status onto the stack
+        self.push(self.status)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def PLA(self):
+        # Pull Accumulator from Stack
+        # (SP) -> A
+
+        # Pull the accumulator from the stack
+        self.a = self.pull()
+
+        # Set the Zero flag if necessary
+        if self.a == 0x00:
+            self.set_flag(Flags.ZERO)
         else:
-            operand &= 0b01111111
-        if operand & 0b10000000:
-            self.status |= 0b00000001
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if self.a & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
         else:
-            self.status &= 0b11111110
-        operand <<= 1
-        if operand == 0:
-            self.status |= 0b00000010
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def PLP(self):
+        # Pull Processor Status from Stack
+        # (SP) -> P
+
+        # Pull the processor status from the stack
+        self.status = self.pull()
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def ROL(self, operand):
+        # Rotate One Bit Left (Memory or Accumulator)
+        # C <- [76543210] <- C
+
+        # Fetch the value from memory
+        value = self.memory.read(operand)
+
+        # Rotate the value left
+        value <<= 1
+
+        # OR the carry flag into the value
+        if self.get_flag(Flags.CARRY):
+            value |= 0x01
+
+        # Write the value back to memory
+        self.memory.write(operand, value)
+
+        # Set the Carry flag if necessary
+        if value & 0x100 != 0:
+            self.set_flag(Flags.CARRY)
         else:
-            self.status &= 0b11111101
+            self.clear_flag(Flags.CARRY)
 
-    def ror(self, operand: int) -> None:
-        """
-        Shifts the immediate value following the ROR opcode one bit to the
-        right and adds the carry flag. The zero flag is set if the value is
-        zero. The carry flag is set if the value is odd.
-        """
-        if self.status & 0b00000001:
-            operand |= 0b10000000
+        # Set the Zero flag if necessary
+        if value == 0x00:
+            self.set_flag(Flags.ZERO)
         else:
-            operand &= 0b01111111
-        if operand & 0b00000001:
-            self.status |= 0b00000001
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if value & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
         else:
-            self.status &= 0b11111110
-        operand >>= 1
-        if operand == 0:
-            self.status |= 0b00000010
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def ROR(self, operand):
+        # Rotate One Bit Right (Memory or Accumulator)
+        # C -> [76543210] -> C
+
+        # Fetch the value from memory
+        value = self.memory.read(operand)
+
+        # Rotate the value right
+        value >>= 1
+
+        # OR the carry flag into the value
+        if self.get_flag(Flags.CARRY):
+            value |= 0x80
+
+        # Write the value back to memory
+        self.memory.write(operand, value)
+
+        # Set the Carry flag if necessary
+        if value & 0x01 != 0:
+            self.set_flag(Flags.CARRY)
         else:
-            self.status &= 0b11111101
+            self.clear_flag(Flags.CARRY)
 
-    def rti(self) -> None:
-        """
-        Pops the stack and loads the value into the status register of the CPU.
-        Pops the stack and loads the value into the program counter of the CPU.
-        """
-        self.status = self.stack_pop()
-        self.program_counter = self.stack_pop()
-
-    def rts(self) -> None:
-        """
-        Pops the stack and loads the value into the program counter of the CPU.
-        """
-        self.program_counter = self.stack_pop()
-
-    def sbc(self, operand: int) -> None:
-        """
-        Subtracts the immediate value following the SBC opcode from the
-        """
-        operand = operand ^ 0b11111111
-        self.adc(operand)
-
-    def sec(self) -> None:
-        """
-        Sets the carry flag of the CPU.
-        """
-        self.status |= 0b00000001
-
-    def sed(self) -> None:
-        """
-        Sets the decimal flag of the CPU.
-        """
-        self.status |= 0b00001000
-
-    def sei(self) -> None:
-        """
-        Sets the interrupt disable flag of the CPU.
-        """
-        self.status |= 0b00000100
-
-    def sta(self, operand: int) -> None:
-        """
-        Stores the accumulator of the CPU in the memory location following the
-        STA opcode.
-        """
-        self.memory.memory[operand] = self.accumulator
-
-    def stx(self, operand: int) -> None:
-        """
-        Stores the X register of the CPU in the memory location following the
-        STX opcode.
-        """
-        self.memory.memory[operand] = self.x_register
-
-    def sty(self, operand: int) -> None:
-        """
-        Stores the Y register of the CPU in the memory location following the
-        STY opcode.
-        """
-        self.memory.memory[operand] = self.y_register
-
-    def tax(self) -> None:
-        """
-        Loads the accumulator of the CPU into the X register. The zero flag is
-        set if the X register is zero. The negative flag is set if the X
-        register is negative.
-        """
-        self.x_register = self.accumulator
-        if self.x_register == 0:
-            self.status |= 0b00000010
+        # Set the Zero flag if necessary
+        if value == 0x00:
+            self.set_flag(Flags.ZERO)
         else:
-            self.status &= 0b11111101
-        if self.x_register & 0b10000000:
-            self.status |= 0b10000000
-        else:
-            self.status &= 0b01111111
+            self.clear_flag(Flags.ZERO)
 
-    def tay(self) -> None:
-        """
-        Loads the accumulator of the CPU into the Y register. The zero flag is
-        set if the Y register is zero. The negative flag is set if the Y
-        register is negative.
-        """
-        self.y_register = self.accumulator
-        if self.y_register == 0:
-            self.status |= 0b00000010
+        # Set the Negative flag if necessary
+        if value & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
         else:
-            self.status &= 0b11111101
-        if self.y_register & 0b10000000:
-            self.status |= 0b10000000
-        else:
-            self.status &= 0b01111111
+            self.clear_flag(Flags.NEGATIVE)
 
-    def tsx(self) -> None:
-        """
-        Loads the stack pointer of the CPU into the X register. The zero flag
-        is set if the X register is zero. The negative flag is set if the X
-        register is negative.
-        """
-        self.x_register = self.stack_pointer
-        if self.x_register == 0:
-            self.status |= 0b00000010
-        else:
-            self.status &= 0b11111101
-        if self.x_register & 0b10000000:
-            self.status |= 0b10000000
-        else:
-            self.status &= 0b01111111
+        # Increment the program counter
+        self.program_counter += 1
 
-    def txa(self) -> None:
-        """
-        Loads the X register of the CPU into the accumulator. The zero flag is
-        set if the accumulator is zero. The negative flag is set if the
-        accumulator is negative.
-        """
-        self.accumulator = self.x_register
-        if self.accumulator == 0:
-            self.status |= 0b00000010
-        else:
-            self.status &= 0b11111101
-        if self.accumulator & 0b10000000:
-            self.status |= 0b10000000
-        else:
-            self.status &= 0b01111111
+    def RTI(self):
+        # Return from Interrupt
+        # from Interrupt
 
-    def txs(self) -> None:
-        """
-        Loads the X register of the CPU into the stack pointer.
-        """
-        self.stack_pointer = self.x_register
+        # Pull the processor status from the stack
+        self.status = self.pull()
 
-    def tya(self) -> None:
-        """
-        Loads the Y register of the CPU into the accumulator. The zero flag is
-        set if the accumulator is zero. The negative flag is set if the
-        accumulator is negative.
-        """
-        self.accumulator = self.y_register
-        if self.accumulator == 0:
-            self.status |= 0b00000010
+        # Pull the program counter from the stack
+        self.program_counter = self.pull_word()
+
+    def RTS(self):
+        # Return from Subroutine
+        # from Subroutine
+
+        # Pull the program counter from the stack
+        self.program_counter = self.pull_word()
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def SBC(self, operand):
+        # Subtract Memory from Accumulator with Borrow
+        # A - M - C -> A
+
+        # Fetch the value from memory
+        value = self.memory.read(operand)
+
+        # Subtract the value from the accumulator
+        result = self.a - value - (1 - self.get_flag(Flags.CARRY))
+
+        # Set the Carry flag if necessary
+        if result < 0x00:
+            self.set_flag(Flags.CARRY)
         else:
-            self.status &= 0b11111101
-        if self.accumulator & 0b10000000:
-            self.status |= 0b10000000
+            self.clear_flag(Flags.CARRY)
+
+        # Set the Overflow flag if necessary
+        if (self.a ^ result) & (value ^ result) & 0x80 != 0:
+            self.set_flag(Flags.OVERFLOW)
         else:
-            self.status &= 0b01111111
+            self.clear_flag(Flags.OVERFLOW)
 
-    def stack_push(self, value: int) -> None:
-        """
-        Pushes a value onto the stack of the CPU.
-        """
-        self.memory.memory[self.stack_pointer + 0x100] = value
-        self.stack_pointer -= 1
-
-    def stack_pop(self) -> int:
-        """
-        Pops a value from the stack of the CPU.
-        """
-        self.stack_pointer += 1
-        return self.memory.memory[self.stack_pointer + 0x100]
-
-    def get_operand(self, addressing_mode: int) -> int:
-        """
-        Returns the operand for the opcode of the CPU.
-        """
-        if addressing_mode == 0b000:
-            return self.memory.memory[self.program_counter]
-        elif addressing_mode == 0b001:
-            return self.memory.memory[self.memory.memory[self.program_counter]]
-        elif addressing_mode == 0b010:
-            return self.memory.memory[self.memory.memory[self.program_counter] + self.x_register]
-        elif addressing_mode == 0b011:
-            return self.memory.memory[self.memory.memory[self.program_counter] + self.y_register]
-        elif addressing_mode == 0b100:
-            return self.memory.memory[self.program_counter + self.x_register]
-        elif addressing_mode == 0b101:
-            return self.memory.memory[self.program_counter + self.y_register]
-        elif addressing_mode == 0b110:
-            return self.memory.memory[self.program_counter + self.memory.memory[self.program_counter + 1]]
-        elif addressing_mode == 0b111:
-            return self.memory.memory[
-                self.program_counter + self.memory.memory[self.program_counter + 1] + self.x_register
-            ]
+        # Set the Zero flag if necessary
+        if result & 0xFF == 0x00:
+            self.set_flag(Flags.ZERO)
         else:
-            raise RuntimeError("Invalid addressing mode.")
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if result & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Write the result back to the accumulator
+        self.a = result & 0xFF
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def SEC(self):
+        # Set Carry Flag
+        # 1 -> C
+
+        # Set the Carry flag
+        self.set_flag(Flags.CARRY)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def SED(self):
+        # Set Decimal Mode
+        # 1 -> D
+
+        # Set the Decimal flag
+        self.set_flag(Flags.DECIMAL)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def SEI(self):
+        # Set Interrupt Disable Status
+        # 1 -> I
+
+        # Set the Interrupt flag
+        self.set_flag(Flags.INTERRUPT)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def STA(self, operand):
+        # Store Accumulator in Memory
+        # A -> M
+
+        # Store the accumulator in memory
+        self.memory.write(operand, self.a)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def STX(self, operand):
+        # Store Index X in Memory
+        # X -> M
+
+        # Store the index X in memory
+        self.memory.write(operand, self.x)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def STY(self, operand):
+        # Store Index Y in Memory
+        # Y -> M
+
+        # Store the index Y in memory
+        self.memory.write(operand, self.y)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def TAX(self):
+        # Transfer Accumulator to Index X
+        # A -> X
+
+        # Transfer the accumulator to index X
+        self.x = self.a
+
+        # Set the Zero flag if necessary
+        if self.x == 0x00:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if self.x & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def TAY(self):
+        # Transfer Accumulator to Index Y
+        # A -> Y
+
+        # Transfer the accumulator to index Y
+        self.y = self.a
+
+        # Set the Zero flag if necessary
+        if self.y == 0x00:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if self.y & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def TSX(self):
+        # Transfer Stack Pointer to Index X
+        # SP -> X
+
+        # Transfer the stack pointer to index X
+        self.x = self.stack_pointer
+
+        # Set the Zero flag if necessary
+        if self.x == 0x00:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if self.x & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def TXA(self):
+        # Transfer Index X to Accumulator
+        # X -> A
+
+        # Transfer index X to the accumulator
+        self.a = self.x
+
+        # Set the Zero flag if necessary
+        if self.a == 0x00:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if self.a & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def TXS(self):
+        # Transfer Index X to Stack Register
+        # X -> SP
+
+        # Transfer index X to the stack pointer
+        self.stack_pointer = self.x
+
+        # Increment the program counter
+        self.program_counter += 1
+
+    def TYA(self):
+        # Transfer Index Y to Accumulator
+        # Y -> A
+
+        # Transfer index Y to the accumulator
+        self.a = self.y
+
+        # Set the Zero flag if necessary
+        if self.a == 0x00:
+            self.set_flag(Flags.ZERO)
+        else:
+            self.clear_flag(Flags.ZERO)
+
+        # Set the Negative flag if necessary
+        if self.a & 0x80 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
+
+        # Increment the program counter
+        self.program_counter += 1

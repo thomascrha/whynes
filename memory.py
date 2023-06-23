@@ -17,3 +17,6 @@ class Memory:
 
     def write(self, address: int, value: int):
         self.memory[address] = value
+
+    def read_word(self, address: int) -> int:
+        return self.read(address) | (self.read(address + 1) << 8)
