@@ -1,5 +1,5 @@
 import enum
-from typing import Optional
+from typing import Optional, Tuple, Union
 
 
 class Opcode:
@@ -28,8 +28,6 @@ class Instructions:
     """
 
     class Opcodes(enum.Enum):
-        UNKNOWN = Opcode(0x00, "UNKNOWN", 0)  # Unknown
-
         ADC = Opcode(0x69, "ADC", 1)  # Add with Carry
         AND = Opcode(0x29, "AND", 1)  # Logical AND
         ASL = Opcode(0x0A, "ASL", 0)  # Arithmetic Shift Left
@@ -88,10 +86,10 @@ class Instructions:
         TYA = Opcode(0x98, "TYA", 0)  # Transfer Y to Accumulator
 
     @staticmethod
-    def get_opcode(opcode_hex) -> Opcodes:
+    def get_opcode(opcode_hex) -> Union[Opcodes, Tuple[int, str, int]]:
         # Iterate over the enum members to find the matching opcode and argument length
         for opcode in Instructions.Opcodes:
             if opcode.value.hex_value == opcode_hex:
                 return opcode
 
-        return Instructions.Opcodes.UNKNOWN
+        return opcode_hex, "UNKNOWN", 0

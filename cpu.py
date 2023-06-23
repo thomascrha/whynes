@@ -1,5 +1,5 @@
+import curses
 import enum
-from cartrige import Cartridge
 from instructions import Instructions
 from logger import get_logger
 from memory import Memory
@@ -43,6 +43,11 @@ class CPU:
 
         self.memory = memory
 
+        self.stdscr = curses.initscr()
+        curses.noecho()
+        curses.cbreak()
+        self.stdscr.keypad(True)
+
     # Flag operations
     def set_flag(self, flag: Flags):
         self.status |= 1 << flag.value
@@ -83,16 +88,64 @@ class CPU:
         # Return the word
         return (high_byte << 8) | low_byte
 
+    def display_cpu_state(self):
+        self.stdscr.addstr(0, 0, "CPU State:")
+        self.stdscr.addstr(2, 0, f"PC: {hex(self.program_counter)}")
+        self.stdscr.addstr(3, 0, f"A: {hex(self.a)}")
+        self.stdscr.addstr(4, 0, f"X: {hex(self.x)}")
+        self.stdscr.addstr(5, 0, f"Y: {hex(self.y)}")
+        self.stdscr.addstr(6, 0, f"Stack Pointer: {hex(self.stack_pointer)}")
+        self.stdscr.addstr(7, 0, f"Status: {bin(self.cpu.status)}")
+
+    def display_registers(self):
+        self.stdscr.addstr(9, 0, "Registers:")
+        # Display additional registers if applicable
+
+    def display_memory(self):
+        self.stdscr.addstr(11, 0, "Memory:")
+        # Display memory contents
+
+        # Get memory range to display
+        start_address = 0x0000
+        end_address = 0xFFFF
+        memory_rows = []
+
+        for address in range(start_address, end_address + 1):
+            value = self.cpu.memory.read(address)
+            binary = self.format_binary(value)
+            memory_rows.append(f"{hex(address)}: {binary}")
+
+        # Display memory rows
+        row = 12
+        for memory_row in memory_rows:
+            self.stdscr.addstr(row, 0, memory_row)
+            row += 1
+
+    def format_binary(self, value):
+        binary = bin(value)[2:].zfill(8)
+        return f"[{binary}]"
+
+    def close(self):
+        curses.nocbreak()
+        self.stdscr.keypad(False)
+        curses.echo()
+        curses.endwin()
+
     def decompile_program(self):
         while self.program_counter < self.memory.cartridge.program_rom_size:
-            logger.debug(
-                f"PC: {hex(self.program_counter)}"
-                f" SP: {hex(self.stack_pointer)}"
-                f" A: {hex(self.a)}"
-                f" X: {hex(self.x)}"
-                f" Y: {hex(self.y)}"
-                f" Status: {hex(self.status)}"
-            )
+            self.stdscr.clear()
+
+            self.display_cpu_state()
+            self.display_registers()
+            self.display_memory()
+
+            self.stdscr.refresh()
+
+            # Get user input
+            key = self.stdscr.getch()
+            if key == ord("q"):
+                break
+
             opcode_hex = self.memory.program_rom[self.program_counter]
             opcode = Instructions.get_opcode(opcode_hex)
             operand = None
@@ -107,7 +160,7 @@ class CPU:
                     getattr(self, opcode.name)()
             else:
                 logger.error(f"FUCK {opcode}")
-                raise SystemError
+                continue
 
     def ADC(self, operand):
         # Add Memory to Accumulator with Carry
@@ -300,7 +353,7 @@ class CPU:
         self.push(self.program_counter & 0xFF)
 
         # Push the status register onto the stack
-        self.push(self.status_register | 0x10)
+        self.push(self.status | 0x10)
 
         # Set the Interrupt flag
         self.set_flag(Flags.INTERRUPT)
