@@ -6,6 +6,10 @@ setup-local:
 	pre-commit install
 .PHONY: setup-local
 
+test:
+	poetry run pytest
+.PHONY: test
+
 run:
-	.venv/bin/python3 console.py -r roms/ines-1x16PGR-1x8kCHR.rm
+	poetry run python console.py -r roms/ines-1x16PGR-1x8kCHR.rm
 .PHONY: run
