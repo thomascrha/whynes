@@ -12,7 +12,7 @@ class Console:
         self.cpu: CPU = CPU(self.memory)
 
     def load_cartridge(self):
-        self.memory.setup(self.cartrige)
+        self.memory.load_cartridge(self.cartrige)
 
 
 if __name__ == "__main__":
@@ -27,4 +27,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     console = Console(**args.__dict__)
     console.load_cartridge()
-    console.cpu.decompile_program()
+    console.cpu.execute()

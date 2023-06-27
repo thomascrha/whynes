@@ -20,17 +20,10 @@ coding experience in)
 
 ## Rules
 
-1. I don't want to look at other peoples code - I want to try and work this out using first principles
-2. The aim is not to create a 'good' emulator but rather something that just works i.e. starts a game and gets to the title screen
+1. When mario can jump, I've finished.
 
-This isn't a new concept - there are alot of emulators for the nes written in python - here are just a few
-
-* https://github.com/ergoadams/arbne
-* https://github.com/PyAndy/Py3NES
-
-As stated in rule 1 - I'm not to use these as reference - I don't what to simply copy a solution
-but rather create my own - all I've seen of these repos is there README and root project structure.
-
-From what I can tell everything I need is here:
+## Resources
 
 [Nesdev Wiki](http://wiki.nesdev.com/w/index.php/Nesdev_Wiki)
+[Online Assemblor/Dissamblembor](https://skilldrick.github.io/easy6502/)
+[Instrution Set Manual](https://www.pagetable.com/c64ref/6502/?tab=2)
