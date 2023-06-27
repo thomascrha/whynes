@@ -10,15 +10,16 @@ from utils import get_bytes_ordered
 logger = get_logger(__name__)
 
 
-class Flags(enum.Enum):
-    CARRY = 0
-    ZERO = 1
-    INTERRUPT_DISABLE = 2
-    DECIMAL = 3
-    BREAK = 4
-    UNUSED = 5
-    OVERFLOW = 6
-    NEGATIVE = 7
+class Flags(enum.Flag):
+    NULL = 0
+    CARRY = 1
+    ZERO = 2
+    INTERRUPT_DISABLE = 4
+    DECIMAL = 8
+    BREAK = 16
+    UNUSED = 32
+    OVERFLOW = 64
+    NEGATIVE = 128
 
 
 class CPU:
@@ -42,7 +43,7 @@ class CPU:
         # 0x05 = 0b00100101
         # 0x06 = 0b00100110
         # 0x07 = 0b00100111
-        self.status = 0x00
+        self.status: Flags = Flags(0b00110000)
 
         self._memory: Memory = memory
         self.memory = self._memory.memory
@@ -53,13 +54,13 @@ class CPU:
 
     # Flag operations
     def set_flag(self, flag: Flags):
-        self.status |= 1 << flag.value
+        self.status |= flag
 
     def clear_flag(self, flag: Flags):
-        self.status &= ~(1 << flag.value)
+        self.status &= ~flag
 
-    def get_flag(self, flag: Flags) -> bool:
-        return bool(self.status & (1 << flag.value))
+    def get_flag(self, flag: Flags):
+        return bool(self.status & flag)
 
     def push_stack(self, value):
         # Push a value onto the stack
@@ -140,7 +141,7 @@ class CPU:
                 ]
                 operand = get_bytes_ordered(argument_bytes)
 
-                return self.memory[(operand + self.x)]
+                return self.memory[(operand + self.x)], operand + self.x
 
             case AddressingModes.Y_INDEXED_ABSOLUTE:
                 """
@@ -158,7 +159,7 @@ class CPU:
                 ]
                 operand = get_bytes_ordered(argument_bytes)
 
-                return self.memory[(operand + self.y)]
+                return self.memory[(operand + self.y)], operand + self.y
 
             case AddressingModes.ABSOLUTE_INDIRECT:
                 """
@@ -175,7 +176,7 @@ class CPU:
                 ]
                 operand = get_bytes_ordered(argument_bytes)
 
-                return self.memory[self.memory[operand]]
+                return self.memory[self.memory[operand]], self.memory[operand]
 
             case AddressingModes.ZERO_PAGE:
                 """
@@ -189,7 +190,7 @@ class CPU:
                 ]
                 operand = get_bytes_ordered(argument_bytes)
 
-                return self.memory[operand]
+                return self.memory[operand], operand
 
             case AddressingModes.X_INDEXED_ZERO_PAGE:
                 """
@@ -206,7 +207,7 @@ class CPU:
                 ]
                 operand = get_bytes_ordered(argument_bytes)
 
-                return self.memory[operand + self.x]
+                return self.memory[operand + self.x], operand + self.x
 
             case AddressingModes.Y_INDEXED_ZERO_PAGE:
                 """
@@ -223,7 +224,7 @@ class CPU:
                 ]
                 operand = get_bytes_ordered(argument_bytes)
 
-                return self.memory[operand + self.y]
+                return self.memory[operand + self.y], operand + self.y
 
             case AddressingModes.X_INDEXED_ZERO_PAGE_INDIRECT:
                 """
@@ -241,7 +242,7 @@ class CPU:
                 ]
                 operand = get_bytes_ordered(argument_bytes)
 
-                return self.memory[self.memory[operand + self.x]]
+                return self.memory[self.memory[operand + self.x]], self.memory[operand + self.x]
 
             case AddressingModes.ZERO_PAGE_INDIRECT_Y_INDEXED:
                 """
@@ -258,7 +259,7 @@ class CPU:
                 ]
                 operand = get_bytes_ordered(argument_bytes)
 
-                return self.memory[self.memory[operand] + self.y]
+                return self.memory[self.memory[operand] + self.y], self.memory[operand] + self.y
 
             case AddressingModes.RELATIVE:
                 argument_bytes = self._memory.program_rom[
@@ -266,19 +267,21 @@ class CPU:
                 ]
                 operand = get_bytes_ordered(argument_bytes)
 
-                return self.memory[operand]
+                return operand, None
 
             case _:
                 logger.error(f"#FUCK {opcode.addressing_mode}")
                 raise SystemError
 
-    def step(self):
-        logger.debug(self)
+    def step(self, first: bool = False):
+        if first:
+            logger.debug(self)
+
         opcode_hex = self._memory.program_rom[self.program_counter]
         instruction = self.opcodes[opcode_hex]
 
         self.instruction = instruction
-        logger.debug(f"{instruction}")
+        logger.debug(instruction)
 
         if not hasattr(self, instruction.opcode.value.upper()):
             logger.error(f"FUCK {instruction}")
@@ -288,8 +291,11 @@ class CPU:
         logger.debug(self)
 
     def execute(self):
+        first = True
         while self.program_counter < len(self._memory.program_rom):
-            self.step()
+            self.step(first=first)
+            if first:
+                first = False
 
     def ADC(self, instruction: Instruction):
         # Add Memory to Accumulator with Carry
@@ -468,7 +474,7 @@ class CPU:
         value, _ = self.get_memory_value(instruction)
 
         if self.get_flag(Flags.ZERO) == 0:
-            self.program_counter += value
+            self.program_counter = value
         else:
             self.program_counter += instruction.no_bytes
 
@@ -479,15 +485,15 @@ class CPU:
         value, _ = self.get_memory_value(instruction)
 
         if self.get_flag(Flags.NEGATIVE) == 0:
-            self.program_counter += value
+            self.program_counter = value
         else:
             self.program_counter += instruction.no_bytes
 
-    # TODO look into this
     def BRK(self, instruction: Instruction):
         # Force Break
         # interrupt, push PC+2, push SR
 
+        print("BRKL")
         # Push the program counter + 2 onto the stack
         self.push_stack((self.program_counter + 2) >> 8)
         self.push_stack((self.program_counter + 2) & 0xFF)
