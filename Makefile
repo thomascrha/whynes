@@ -1,6 +1,7 @@
 SHELL      := /bin/bash
 
 setup-local:
+	git submodule sync && git submodule update --init --recursive --remote
 	poetry config --local virtualenvs.in-project true
 	poetry install
 	pre-commit install
@@ -11,5 +12,5 @@ test:
 .PHONY: test
 
 run:
-	poetry run python console.py -r roms/ines-1x16PGR-1x8kCHR.rm
+	poetry run python console.py -r ./nes-test-roms/instr_test-v5/official_only.nes
 .PHONY: run

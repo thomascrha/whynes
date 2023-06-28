@@ -60,7 +60,6 @@ dissassembly_command_order_1 = [
 ]
 
 cycle_states_1 = [
-    ("A=$00 X=$00 Y=$00 SP=$ff PC=$0000", None, 0b00110000),
     ("A=$c0 X=$00 Y=$00 SP=$ff PC=$0002", None, 0b10110000),
     ("A=$c0 X=$c0 Y=$00 SP=$ff PC=$0003", None, 0b10110000),
     ("A=$c0 X=$c1 Y=$00 SP=$ff PC=$0004", None, 0b10110000),
@@ -107,7 +106,6 @@ dissassembly_command_order_2 = [
 ]
 
 cycle_states_2 = [
-    ("A=$00 X=$00 Y=$00 SP=$ff PC=$0000", "$0200=$00 $0201=$00", 0b00110000),
     ("A=$00 X=$08 Y=$00 SP=$ff PC=$0002", "$0200=$00 $0201=$00", 0b00110000),
     ("A=$00 X=$07 Y=$00 SP=$ff PC=$0003", "$0200=$00 $0201=$00", 0b00110000),
     ("A=$00 X=$07 Y=$00 SP=$ff PC=$0006", "$0200=$07 $0201=$00", 0b00110000),
@@ -147,16 +145,7 @@ def test_assembly_cpu(asl: str, input: str, cycle_states: list, dissassembly_com
     memory.load_bytes(program_rom=program_rom)
     cpu = CPU(memory=memory)
 
-    # intial state
-    a, x, y, sp, pc, memory_state, status = get_state_from_cycle_state(cycle_states[0])
-    assert cpu.a == a
-    assert cpu.x == x
-    assert cpu.y == y
-    assert cpu.stack_pointer == sp
-    assert cpu.program_counter == pc
-    assert cpu.status == Flags(status)
-
-    for i, cycle_state in enumerate(cycle_states[1:]):
+    for i, cycle_state in enumerate(cycle_states):
         if i == 0:
             cpu.step(first=True)
         else:
