@@ -174,6 +174,7 @@ def test_assembly_cpu(program_rom: bytearray, cycle_states: list, dissassembly_c
         assert cpu.state["SP"] == cycle_state["SP"]
         assert cpu.state["PC"] == cycle_state["PC"]
         assert cpu.state["S"] == cycle_state["S"]
+        # TODO: fix memory - and work out why it seems to start an infinite loop
         # assert cpu.state["memory"] == cycle_state["memory"]
 
         assert cpu.instruction.opcode == dissassembly_command_order[i][0]
