@@ -1,17 +1,19 @@
 import argparse
-import asyncio
 from pathlib import Path
 from cartrige import Cartridge
 from cpu import CPU
 from memory import Memory
-from pydantic import conbytes
 
 
 class Console:
+    cartrige: Cartridge
+    memory: Memory
+    cpu: CPU
+
     def __init__(self, rom_path: Path) -> None:
-        self.cartrige: Cartridge = Cartridge(rom_path=rom_path)
-        self.memory: Memory = Memory()
-        self.cpu: CPU = CPU(self.memory)
+        self.cartrige = Cartridge(rom_path=rom_path)
+        self.memory = Memory()
+        self.cpu = CPU(self.memory)
 
     def load_cartridge(self):
         self.memory.load_cartridge(self.cartrige)

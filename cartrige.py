@@ -1,6 +1,7 @@
 import enum
 import sys
-from typing import Annotated, List
+from logging import Logger
+from typing import List
 from logger import get_logger
 from pydantic import FilePath
 
@@ -97,8 +98,12 @@ class Cartridge:
         Cartridge
     """
 
+    logger: Logger
+    rom_path: FilePath
+    raw_bytes: bytearray
+
     type: CartridgeFormat
-    header: Annotated[List[bytes], HEX_16]
+    header: bytearray
     program_rom: bytearray
     character_rom: bytearray
     program_rom_size: int
@@ -106,7 +111,7 @@ class Cartridge:
     program_rom_size_multiplier: int
     character_rom_size_multiplier: int
 
-    def __init__(self, rom_path: FilePath):
+    def __init__(self, rom_path: FilePath) -> None:
         self.logger = get_logger(self.__class__.__name__)
 
         self.rom_path = rom_path
@@ -143,7 +148,7 @@ class Cartridge:
             + (HEX_16 * KB) * self.program_rom_size_multiplier : (HEX_8 * KB) * self.character_rom_size_multiplier
         ]
 
-    def validate(self, rom_path) -> List[bytes]:
+    def validate(self, rom_path: FilePath) -> bytearray:
         # Only accept either iNes or NES2.0 type files
         # https://www.nesdev.org/wiki/NES_2.0
 
@@ -157,7 +162,7 @@ class Cartridge:
             self.logger.critical(f"The provided ROM file {rom_path} can't be identified")
             sys.exit(1)
 
-        return raw_bytes
+        return bytearray(raw_bytes)
 
     def identify(self) -> CartridgeFormat:
         """Recommended detection procedure:

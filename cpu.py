@@ -1,11 +1,8 @@
 import enum
-import functools
-from typing import Optional, Tuple
+from typing import Optional
 from instructions import AddressingModes, Instruction, load_opcodes
 from logger import get_logger
 from memory import Memory
-from pydantic import validate_arguments
-from utils import get_bytes_ordered
 
 logger = get_logger(__name__)
 
@@ -23,7 +20,16 @@ class Flag(enum.Flag):
 
 
 class CPU:
-    def __init__(self, memory: Memory):
+    program_counter: int
+    a: int
+    x: int
+    y: int
+    stack_pointer: int
+    status: Flag
+    memory: Memory
+    opcodes: dict
+
+    def __init__(self, memory: Memory) -> None:
         # registers
         # program counter is 16 bits
         self.program_counter = 0x0000
@@ -43,10 +49,9 @@ class CPU:
         # 0x05 = 0b00100101
         # 0x06 = 0b00100110
         # 0x07 = 0b00100111
-        self.status: Flag = Flag(0b00100100)
+        self.status = Flag(0b00100100)
 
-        self._memory: Memory = memory
-        self.memory = self._memory.memory
+        self.memory = memory
         self.opcodes = load_opcodes()
 
     @property
@@ -58,7 +63,7 @@ class CPU:
             "SP": self.stack_pointer,
             "PC": self.program_counter,
             "S": self.status,
-            "memory": self.memory,
+            "memory": self.memory.memory,
         }
 
     def set_state(self, state: dict):
@@ -69,7 +74,7 @@ class CPU:
         self.program_counter = state["PC"]
         self.status = state["S"]
         if "memory" in state:
-            self.memory = state["memory"]
+            self.memory.memory = state["memory"]
 
     def __str__(self):
         return f"CPU: A: {self.a}, X: {self.x}, Y: {self.y}, PC: {self.program_counter}, SP: {self.stack_pointer}, S: {self.status}"
@@ -86,136 +91,37 @@ class CPU:
 
     def push_stack(self, value):
         # Push a value onto the stack
-        self.memory[0x0100 + self.stack_pointer] = value
+        self.memory.memory[0x0100 + self.stack_pointer] = value
         self.stack_pointer -= 1
 
     def pull_stack(self):
         # Read the value from the stack
-        value = self.memory[0x0100 + self.stack_pointer]
+        value = self.memory.memory[0x0100 + self.stack_pointer]
 
         # Increment the stack pointer
         self.stack_pointer += 1
 
         return value
 
-    def pull_stack_word(self):
-        # Read the value from the stack
-        value, _ = self._memory.read_word(0x0100 + self.stack_pointer)
-
-        # Increment the stack pointer
-        self.stack_pointer += 2
-
-        return value
-
-    def push_stack_word(self, value):
-        # Push a value onto the stack
-        self._memory.write_word(0x0100 + self.stack_pointer, value)
-        self.stack_pointer -= 2
-
-    # TODO move this to Memory
-    def get_memory_value(self, instruction: Instruction) -> Tuple[int, int]:
-        # -> Value,        Address if fetched from memory
-        match (instruction.addressing_mode):
-            case AddressingModes.IMPLIED:
-                return 0, 0
-
-            case AddressingModes.ACCUMULATOR:
-                return self.a, 0
-
-            case AddressingModes.IMMEDIATE:
-                argument_bytes = self._memory.program_rom[
-                    self.program_counter + 1 : self.program_counter + instruction.no_bytes
-                ]
-                return get_bytes_ordered(argument_bytes), None
-
-            case AddressingModes.ABSOLUTE:
-                argument_bytes = self._memory.program_rom[
-                    self.program_counter + 1 : self.program_counter + instruction.no_bytes
-                ]
-                memory_address = get_bytes_ordered(argument_bytes)
-                return self.memory[memory_address], memory_address
-
-            case AddressingModes.X_INDEXED_ABSOLUTE:
-                argument_bytes = self._memory.program_rom[
-                    self.program_counter + 1 : self.program_counter + instruction.no_bytes
-                ]
-                operand = get_bytes_ordered(argument_bytes)
-
-                return self.memory[(operand + self.x)], operand + self.x
-
-            case AddressingModes.Y_INDEXED_ABSOLUTE:
-                argument_bytes = self._memory.program_rom[
-                    self.program_counter + 1 : self.program_counter + instruction.no_bytes
-                ]
-                operand = get_bytes_ordered(argument_bytes)
-
-                return self.memory[(operand + self.y)], operand + self.y
-
-            case AddressingModes.ABSOLUTE_INDIRECT:
-                argument_bytes = self._memory.program_rom[
-                    self.program_counter + 1 : self.program_counter + instruction.no_bytes
-                ]
-                operand = get_bytes_ordered(argument_bytes)
-
-                return self.memory[self.memory[operand]], self.memory[operand]
-
-            case AddressingModes.ZERO_PAGE:
-                argument_bytes = self._memory.program_rom[
-                    self.program_counter + 1 : self.program_counter + instruction.no_bytes
-                ]
-                operand = get_bytes_ordered(argument_bytes)
-
-                return self.memory[operand], operand
-
-            case AddressingModes.X_INDEXED_ZERO_PAGE:
-                argument_bytes = self._memory.program_rom[
-                    self.program_counter + 1 : self.program_counter + instruction.no_bytes
-                ]
-                operand = get_bytes_ordered(argument_bytes)
-
-                return self.memory[operand + self.x], operand + self.x
-
-            case AddressingModes.Y_INDEXED_ZERO_PAGE:
-                argument_bytes = self._memory.program_rom[
-                    self.program_counter + 1 : self.program_counter + instruction.no_bytes
-                ]
-                operand = get_bytes_ordered(argument_bytes)
-
-                return self.memory[operand + self.y], operand + self.y
-
-            case AddressingModes.X_INDEXED_ZERO_PAGE_INDIRECT:
-                argument_bytes = self._memory.program_rom[
-                    self.program_counter + 1 : self.program_counter + instruction.no_bytes
-                ]
-                operand = get_bytes_ordered(argument_bytes)
-
-                return self.memory[self.memory[operand + self.x]], self.memory[operand + self.x]
-
-            case AddressingModes.ZERO_PAGE_INDIRECT_Y_INDEXED:
-                argument_bytes = self._memory.program_rom[
-                    self.program_counter + 1 : self.program_counter + instruction.no_bytes
-                ]
-                operand = get_bytes_ordered(argument_bytes)
-
-                return self.memory[self.memory[operand] + self.y], self.memory[operand] + self.y
-
-            case AddressingModes.RELATIVE:
-                argument_bytes = self._memory.program_rom[
-                    self.program_counter + 1 : self.program_counter + instruction.no_bytes
-                ]
-                operand = get_bytes_ordered(argument_bytes)
-
-                return operand, None
-
-            case _:
-                logger.error(f"#FUCK {opcode.addressing_mode}")
-                raise SystemError
+    # def pull_stack_word(self):
+    #     # Read the value from the stack
+    #     value, _ = self.memory.read_word(0x0100 + self.stack_pointer)
+    #
+    #     # Increment the stack pointer
+    #     self.stack_pointer += 2
+    #
+    #     return value
+    #
+    # def push_stack_word(self, value):
+    #     # Push a value onto the stack
+    #     self.memory.write_word(0x0100 + self.stack_pointer, value)
+    #     self.stack_pointer -= 2
 
     def step(self):
         # if first:
         # logger.debug(self)
 
-        opcode_hex = self._memory.program_rom[self.program_counter]
+        opcode_hex = self.memory.program_rom[self.program_counter]
         instruction = self.opcodes[opcode_hex]
 
         self.instruction = instruction
@@ -230,13 +136,13 @@ class CPU:
 
     def run(self):
         logger.info("Starting Execution")
-        while self.program_counter < len(self._memory.program_rom):
+        while self.program_counter < len(self.memory.program_rom):
             self.step()
 
     def ADC(self, instruction: Instruction):
         # Add Memory to Accumulator with Carry
         # A + M + C -> A, C
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -275,7 +181,7 @@ class CPU:
     def AND(self, instruction: Instruction):
         # AND Memory with Accumulator
         # A AND M -> A
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -298,7 +204,7 @@ class CPU:
     def ASL(self, instruction: Instruction):
         # Arithmetic Shift Left
         # C <- [76543210] <- 0
-        value, memory_address = self.get_memory_value(instruction)
+        value, memory_address = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -328,15 +234,14 @@ class CPU:
             self.a = value
         else:
             # Store the result in memory
-            self.memory[memory_address] = value
+            self.memory.set_memory(memory_address, value)
 
     def BCC(self, instruction: Instruction):
         # Branch on Carry Clear
         # branch on C = 0
 
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
-        print(value)
         if self.get_flag(Flag.CARRY) == 0:
             self.program_counter += value
         else:
@@ -346,9 +251,8 @@ class CPU:
         # Branch on Carry Set
         # branch on C = 1
 
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
-        print(value)
         if self.get_flag(Flag.CARRY) == 1:
             self.program_counter += value
         else:
@@ -359,7 +263,7 @@ class CPU:
         # branch on Z = 1
 
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         if self.get_flag(Flag.ZERO) == 1:
             self.program_counter += value
@@ -370,7 +274,7 @@ class CPU:
         # Test Bits in Memory with Accumulator
         # A AND M, M7 -> N, M6 -> V
 
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -378,8 +282,6 @@ class CPU:
         # Perform the AND operation
         self.a &= value
 
-        print(self.a)
-        print(value)
         # Update the Zero flag
         if self.a == 0:
             self.set_flag(Flag.ZERO)
@@ -402,7 +304,7 @@ class CPU:
         # Branch on Result Minus
         # branch on N = 1
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         if self.get_flag(Flag.NEGATIVE) == 1:
             self.program_counter += value
@@ -414,7 +316,7 @@ class CPU:
         # branch on Z = 0
 
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         if self.get_flag(Flag.ZERO) == 0:
             self.program_counter = value
@@ -425,14 +327,14 @@ class CPU:
         # Branch on Result Plus
         # branch on N = 0
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         if self.get_flag(Flag.NEGATIVE) == 0:
             self.program_counter = value
         else:
             self.program_counter += instruction.no_bytes
 
-    def BRK(self, instruction: Optional[Instruction] = None):
+    def BRK(self, instruction: Instruction):
         """
         Force Break
         interrupt, PC + 2 toS, B toS, D toS, interrupt vector to $FFFE/$FFFF
@@ -457,13 +359,13 @@ class CPU:
         self.push_stack(self.status.value)
 
         # Set the program counter to the interrupt vector
-        self.program_counter = self.memory[0xFFFE]
+        self.program_counter = self.memory.memory[0xFFFE]
 
     def BVC(self, instruction: Instruction):
         # Branch on Overflow Clear
         # branch on V = 0
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         if self.get_flag(Flag.OVERFLOW) == 0:
             self.program_counter += value
@@ -474,14 +376,14 @@ class CPU:
         # Branch on Overflow Set
         # branch on V = 1
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         if self.get_flag(Flag.OVERFLOW) == 1:
             self.program_counter += value
         else:
             self.program_counter += instruction.no_bytes
 
-    def CLC(self, instruction: Optional[Instruction] = None):
+    def CLC(self, instruction: Instruction):
         # Clear Carry Flag
         # 0 -> C
         self.clear_flag(Flag.CARRY)
@@ -489,7 +391,7 @@ class CPU:
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
 
-    def CLD(self, instruction: Optional[Instruction] = None):
+    def CLD(self, instruction: Instruction):
         # Clear Decimal Mode
         # 0 -> D
 
@@ -498,7 +400,7 @@ class CPU:
         # Increment the program counter
         self.program_counter += instruction.no_bytes
 
-    def CLI(self, instruction: Optional[Instruction] = None):
+    def CLI(self, instruction: Instruction):
         # Clear Interrupt Disable Bit
         # 0 -> I
 
@@ -507,7 +409,7 @@ class CPU:
         # Increment the program counter
         self.program_counter += instruction.no_bytes
 
-    def CLV(self, instruction: Optional[Instruction] = None):
+    def CLV(self, instruction: Instruction):
         # Clear Overflow Flag
         # 0 -> V
 
@@ -520,7 +422,7 @@ class CPU:
         # Compare Memory and Accumulator
         # A - M
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -550,7 +452,7 @@ class CPU:
         # Compare Memory and Index X
         # X - M
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -580,7 +482,7 @@ class CPU:
         # Compare Memory and Index Y
         # Y - M
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -609,7 +511,7 @@ class CPU:
         # Decrement Memory by One
         # M - 1 -> M
         # Fetch the value from memory based on the addressing mode
-        value, memory_address = self.get_memory_value(instruction)
+        value, memory_address = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -630,9 +532,9 @@ class CPU:
             self.clear_flag(Flag.NEGATIVE)
 
         # Write the value back to memory
-        self.memory[memory_address] = value
+        self.memory.set_memory(memory_address, value)
 
-    def DEX(self, instruction: Optional[Instruction] = None):
+    def DEX(self, instruction: Instruction):
         # Decrement Index X by One
         # X - 1 -> X
 
@@ -654,7 +556,7 @@ class CPU:
         # Increment the program counter
         self.program_counter += instruction.no_bytes
 
-    def DEY(self, instruction: Optional[Instruction] = None):
+    def DEY(self, instruction: Instruction):
         # Decrement Index Y by One
         # Y - 1 -> Y
 
@@ -680,7 +582,7 @@ class CPU:
         # Exclusive-OR Memory with Accumulator
         # A EOR M -> A
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -703,7 +605,7 @@ class CPU:
         # Increment Memory by One
         # M + 1 -> M
         # Fetch the value from memory based on the addressing mode
-        value, memory_address = self.get_memory_value(instruction)
+        value, memory_address = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -724,9 +626,9 @@ class CPU:
             self.clear_flag(Flag.NEGATIVE)
 
         # Write the value back to memory
-        self.memory[memory_address] = value
+        self.memory.set_memory(memory_address, value)
 
-    def INX(self, instruction: Optional[Instruction] = None):
+    def INX(self, instruction: Instruction):
         # Increment Index X by One
         # X + 1 -> X
 
@@ -748,7 +650,7 @@ class CPU:
         # Increment the program counter
         self.program_counter += instruction.no_bytes
 
-    def INY(self, instruction: Optional[Instruction] = None):
+    def INY(self, instruction: Instruction):
         # Increment Index Y by One
         # Y + 1 -> Y
 
@@ -775,7 +677,7 @@ class CPU:
         # (PC + 1) -> PCL
         # (PC + 2) -> PCH
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         # Set the program counter to the address
         self.program_counter = value
@@ -786,7 +688,7 @@ class CPU:
         # (PC + 1) -> PCL
         # (PC + 2) -> PCH
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         # Push the return address onto the stack
         self.push_stack(self.program_counter + 2)
@@ -799,7 +701,7 @@ class CPU:
         # Load Accumulator with Memory
         # M -> A
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -822,7 +724,7 @@ class CPU:
         # Load Index X with Memory
         # M -> X
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -846,7 +748,7 @@ class CPU:
         # Load Index Y with Memory
         # M -> Y
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -870,7 +772,7 @@ class CPU:
         # 0 -> [7][6][5][4][3][2][1][0] -> C
         # M/2 -> [7][6][5][4][3][2][1][0]
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, memory_address = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -896,9 +798,9 @@ class CPU:
             self.clear_flag(Flag.NEGATIVE)
 
         # Write the value back to memory
-        self.memory[memory_address] = value
+        self.memory.set_memory(memory_address, value)
 
-    def NOP(self, instruction: Optional[Instruction] = None):
+    def NOP(self, instruction: Instruction):
         # No Operation
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -907,7 +809,7 @@ class CPU:
         # OR Memory with Accumulator
         # A OR M -> A
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -926,7 +828,7 @@ class CPU:
         else:
             self.clear_flag(Flag.NEGATIVE)
 
-    def PHA(self, instruction: Optional[Instruction] = None):
+    def PHA(self, instruction: Instruction):
         # Push Accumulator on Stack
         # Push A on stack
 
@@ -936,7 +838,7 @@ class CPU:
         # Increment the program counter
         self.program_counter += instruction.no_bytes
 
-    def PHP(self, instruction: Optional[Instruction] = None):
+    def PHP(self, instruction: Instruction):
         # Push Processor Status on Stack
         # Push P on stack
 
@@ -946,7 +848,7 @@ class CPU:
         # Increment the program counter
         self.program_counter += instruction.no_bytes
 
-    def PLA(self, instruction: Optional[Instruction] = None):
+    def PLA(self, instruction: Instruction):
         # Pull Accumulator from Stack
         # Pull A from stack
 
@@ -968,7 +870,7 @@ class CPU:
         # Increment the program counter
         self.program_counter += instruction.no_bytes
 
-    def PLP(self, instruction: Optional[Instruction] = None):
+    def PLP(self, instruction: Instruction):
         # Pull Processor Status from Stack
         # Pull P from stack
 
@@ -983,7 +885,7 @@ class CPU:
         # C <- [7][6][5][4][3][2][1][0] <- C
         # M <- [6][5][4][3][2][1][0][C]
         # Fetch the value from memory based on the addressing mode
-        value, memory_address = self.get_memory_value(instruction)
+        value, memory_address = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -1024,7 +926,7 @@ class CPU:
         # C -> [7][6][5][4][3][2][1][0] -> C
         # M -> [C][7][6][5][4][3][2][1]
         # Fetch the value from memory based on the addressing mode
-        value, memory_address = self.get_memory_value(instruction)
+        value, memory_address = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -1057,9 +959,9 @@ class CPU:
             self.clear_flag(Flag.NEGATIVE)
 
         # Write the value back to memory
-        self.memory[memory_address] = value
+        self.memory.set_memory(memory_address, value)
 
-    def RTI(self, instruction: Optional[Instruction] = None):
+    def RTI(self, instruction: Instruction):
         # Return from Interrupt
         # Pull P from stack, PC from stack
 
@@ -1069,7 +971,7 @@ class CPU:
         # Pull the program counter from the stack
         self.program_counter = self.pull_stack_word()
 
-    def RTS(self, instruction: Optional[Instruction] = None):
+    def RTS(self, instruction: Instruction):
         # Return from Subroutine
         # Pull PC from stack, PC+1 -> PC
 
@@ -1083,7 +985,7 @@ class CPU:
         # Subtract Memory from Accumulator with Borrow
         # A - M - C -> A
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -1117,7 +1019,7 @@ class CPU:
         # Write the result back to the accumulator
         self.a = result & 0xFF
 
-    def SEC(self, instruction: Optional[Instruction] = None):
+    def SEC(self, instruction: Instruction):
         # Set Carry Flag
         # 1 -> C
 
@@ -1127,7 +1029,7 @@ class CPU:
         # Increment the program counter
         self.program_counter += instruction.no_bytes
 
-    def SED(self, instruction: Optional[Instruction] = None):
+    def SED(self, instruction: Instruction):
         # Set Decimal Flag
         # 1 -> D
 
@@ -1137,7 +1039,7 @@ class CPU:
         # Increment the program counter
         self.program_counter += instruction.no_bytes
 
-    def SEI(self, instruction: Optional[Instruction] = None):
+    def SEI(self, instruction: Instruction):
         # Set Interrupt Disable Status
         # 1 -> I
 
@@ -1152,38 +1054,38 @@ class CPU:
         # A -> M
 
         # Fetch the value from memory based on the addressing mode
-        _, memory_address = self.get_memory_value(instruction)
+        _, memory_address = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
 
         # Write the accumulator to memory based on the addressing mode
-        self.memory[memory_address] = self.a
+        self.memory.set_memory(memory_address, self.a)
 
     def STX(self, instruction: Instruction):
         # Store Index X in Memory
         # X -> M
         # Fetch the value from memory based on the addressing mode
-        value, memory_address = self.get_memory_value(instruction)
+        value, memory_address = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
         # Write the X register to memory based on the addressing mode
-        self.memory[memory_address] = self.x
+        self.memory.set_memory(memory_address, value)
 
     def STY(self, instruction: Instruction):
         # Store Index Y in Memory
         # Y -> M
         # Fetch the value from memory based on the addressing mode
-        value, _ = self.get_memory_value(instruction)
+        value, _ = self.memory.get_memory_value(instruction, self)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
 
         # Write the Y register to memory based on the addressing mode
-        self.set_memory_value(value, self.y)
+        self.memory.set_memory(value, self.y)
 
-    def TAX(self, instruction: Optional[Instruction] = None):
+    def TAX(self, instruction: Instruction):
         # Transfer Accumulator to Index X
         # A -> X
 
@@ -1205,7 +1107,7 @@ class CPU:
         # Increment the program counter
         self.program_counter += instruction.no_bytes
 
-    def TAY(self, instruction: Optional[Instruction] = None):
+    def TAY(self, instruction: Instruction):
         # Transfer Accumulator to Index Y
         # A -> Y
 
@@ -1227,7 +1129,7 @@ class CPU:
         # Increment the program counter
         self.program_counter += instruction.no_bytes
 
-    def TSX(self, instruction: Optional[Instruction] = None):
+    def TSX(self, instruction: Instruction):
         # Transfer Stack Pointer to Index X
         # SP -> X
 
@@ -1249,7 +1151,7 @@ class CPU:
         # Increment the program counter
         self.program_counter += instruction.no_bytes
 
-    def TXA(self, instruction: Optional[Instruction] = None):
+    def TXA(self, instruction: Instruction):
         # Transfer Index X to Accumulator
         # X -> A
 
@@ -1271,7 +1173,7 @@ class CPU:
         # Increment the program counter
         self.program_counter += instruction.no_bytes
 
-    def TXS(self, instruction: Optional[Instruction] = None):
+    def TXS(self, instruction: Instruction):
         # Transfer Index X to Stack Pointer
         # X -> SP
 
@@ -1281,7 +1183,7 @@ class CPU:
         # Increment the program counter
         self.program_counter += instruction.no_bytes
 
-    def TYA(self, instruction: Optional[Instruction] = None):
+    def TYA(self, instruction: Instruction):
         # Transfer Index Y to Accumulator
         # Y -> A
 

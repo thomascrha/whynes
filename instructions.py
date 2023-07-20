@@ -1,5 +1,6 @@
 import enum
-from typing import List, Optional, Tuple, Union
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
 
 
 class AddressingModes(str, enum.Enum):
@@ -77,18 +78,17 @@ class Opcodes(str, enum.Enum):
     TYA = "TYA"
 
 
-# Addressing Mode	Assembly Language Form	Opcode	No. Bytes	No. Cycles
 class Instruction:
-    def __init__(self, opcode: Opcodes, addressing_mode: AddressingModes, no_bytes: int):
+    def __init__(self, opcode: Opcodes, addressing_mode: AddressingModes, no_bytes: int) -> None:
         self.opcode = opcode
         self.addressing_mode = addressing_mode
         self.no_bytes = no_bytes
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.opcode} - {self.addressing_mode} - {self.no_bytes}"
 
 
-def parse_opcode_addressing_mode(table: List[str], opcode_name: str) -> dict:
+def parse_opcode_addressing_mode(table: List[str], opcode_name: str) -> Dict[int, Instruction]:
     table_headers = table[0].split("\t")
     opcodes = {}
     for opcode in table[1:]:
@@ -106,7 +106,7 @@ def parse_opcode_addressing_mode(table: List[str], opcode_name: str) -> dict:
     return opcodes
 
 
-def load_opcodes(file_path="./instructions.txt"):
+def load_opcodes(file_path: Path = Path("./instructions.txt")) -> Dict[int, Instruction]:
     with open(file_path, "r") as f:
         opcodes = ",".join(f.readlines())
         opcodes = opcodes.split("\n,\n,")
