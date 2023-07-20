@@ -10,7 +10,7 @@ from utils import get_bytes_ordered
 logger = get_logger(__name__)
 
 
-class Flags(enum.Flag):
+class Flag(enum.Flag):
     NULL = 0
     CARRY = 1
     ZERO = 2
@@ -43,33 +43,55 @@ class CPU:
         # 0x05 = 0b00100101
         # 0x06 = 0b00100110
         # 0x07 = 0b00100111
-        self.status: Flags = Flags(0b00110000)
+        self.status: Flag = Flag(0b00100100)
 
         self._memory: Memory = memory
         self.memory = self._memory.memory
         self.opcodes = load_opcodes()
 
+    @property
+    def state(self):
+        return {
+            "A": self.a,
+            "X": self.x,
+            "Y": self.y,
+            "SP": self.stack_pointer,
+            "PC": self.program_counter,
+            "S": self.status,
+            "memory": self.memory,
+        }
+
+    def set_state(self, state: dict):
+        self.a = state["A"]
+        self.x = state["X"]
+        self.y = state["Y"]
+        self.stack_pointer = state["SP"]
+        self.program_counter = state["PC"]
+        self.status = state["S"]
+        if "memory" in state:
+            self.memory = state["memory"]
+
     def __str__(self):
-        return f"CPU: A: {self.a}, X: {self.x}, Y: {self.y}, PC: {self.program_counter}, SP: {self.stack_pointer}, Status: {self.status}"
+        return f"CPU: A: {self.a}, X: {self.x}, Y: {self.y}, PC: {self.program_counter}, SP: {self.stack_pointer}, S: {self.status}"
 
     # Flag operations
-    def set_flag(self, flag: Flags):
+    def set_flag(self, flag: Flag):
         self.status |= flag
 
-    def clear_flag(self, flag: Flags):
+    def clear_flag(self, flag: Flag):
         self.status &= ~flag
 
-    def get_flag(self, flag: Flags):
+    def get_flag(self, flag: Flag):
         return bool(self.status & flag)
 
     def push_stack(self, value):
         # Push a value onto the stack
-        self._memory.write(0x0100 + self.stack_pointer, value)
+        self.memory[0x0100 + self.stack_pointer] = value
         self.stack_pointer -= 1
 
     def pull_stack(self):
         # Read the value from the stack
-        value, _ = self._memory.read(0x0100 + self.stack_pointer)
+        value = self.memory[0x0100 + self.stack_pointer]
 
         # Increment the stack pointer
         self.stack_pointer += 1
@@ -91,14 +113,14 @@ class CPU:
         self.stack_pointer -= 2
 
     # TODO move this to Memory
-    def get_memory_value(self, instruction: Instruction) -> Tuple[Optional[int], Optional[int]]:
+    def get_memory_value(self, instruction: Instruction) -> Tuple[int, int]:
         # -> Value,        Address if fetched from memory
         match (instruction.addressing_mode):
             case AddressingModes.IMPLIED:
-                return None, None
+                return 0, 0
 
             case AddressingModes.ACCUMULATOR:
-                return self.a, None
+                return self.a, 0
 
             case AddressingModes.IMMEDIATE:
                 argument_bytes = self._memory.program_rom[
@@ -107,18 +129,6 @@ class CPU:
                 return get_bytes_ordered(argument_bytes), None
 
             case AddressingModes.ABSOLUTE:
-                """
-                In absolute addressing, the second byte of the instruction
-                specifies the eight low order bits of the effective address
-                while the third byte specifies the eight high order bits. Thus,
-                the absolute addressing mode allows access to the entire
-                65 K bytes of addressable memory.
-                """
-                # ADC $4400
-                # 0x69 0x00 0x44
-                # 0x69 = ADC
-                # 0x00 = operand lower byte
-                # 0x44 = operand higher byte
                 argument_bytes = self._memory.program_rom[
                     self.program_counter + 1 : self.program_counter + instruction.no_bytes
                 ]
@@ -126,16 +136,6 @@ class CPU:
                 return self.memory[memory_address], memory_address
 
             case AddressingModes.X_INDEXED_ABSOLUTE:
-                """
-                This form of addressing is used in conjunction with the X index
-                register. The effective address is formed by adding the contents
-                of X to the address contained in the second and third bytes of
-                the instruction. This mode allows the index register to contain
-                the index or count value and the instruction to contain the base
-                address. This type of indexing allows any location referencing
-                and the index to modify multiple fields resulting in reduced
-                coding and execution time.
-                """
                 argument_bytes = self._memory.program_rom[
                     self.program_counter + 1 : self.program_counter + instruction.no_bytes
                 ]
@@ -144,16 +144,6 @@ class CPU:
                 return self.memory[(operand + self.x)], operand + self.x
 
             case AddressingModes.Y_INDEXED_ABSOLUTE:
-                """
-                This form of addressing is used in conjunction with the Y index
-                register. The effective address is formed by adding the contents
-                of Y to the address contained in the second and third bytes of
-                the instruction. This mode allows the index register to contain
-                the index or count value and the instruction to contain the base
-                address. This type of indexing allows any location referencing
-                and the index to modify multiple fields resulting in reduced
-                coding and execution time.
-                """
                 argument_bytes = self._memory.program_rom[
                     self.program_counter + 1 : self.program_counter + instruction.no_bytes
                 ]
@@ -162,15 +152,6 @@ class CPU:
                 return self.memory[(operand + self.y)], operand + self.y
 
             case AddressingModes.ABSOLUTE_INDIRECT:
-                """
-                The second byte of the instruction contains the low order eight
-                bits of a memory location. The high order eight bits of that
-                memory location is contained in the third byte of the instruction.
-                The contents of the fully specified memory location is the low
-                order byte of the effective address. The next memory location
-                contains the high order byte of the effective address which is
-                loaded into the sixteen bits of the program counter.
-                """
                 argument_bytes = self._memory.program_rom[
                     self.program_counter + 1 : self.program_counter + instruction.no_bytes
                 ]
@@ -179,12 +160,6 @@ class CPU:
                 return self.memory[self.memory[operand]], self.memory[operand]
 
             case AddressingModes.ZERO_PAGE:
-                """
-                The zero page instructions allow for shorter code and execution
-                times by only fetching the second byte of the instruction and
-                assuming a zero high address byte. Careful use of the zero page
-                can result in significant increase in code efficiency.
-                """
                 argument_bytes = self._memory.program_rom[
                     self.program_counter + 1 : self.program_counter + instruction.no_bytes
                 ]
@@ -193,15 +168,6 @@ class CPU:
                 return self.memory[operand], operand
 
             case AddressingModes.X_INDEXED_ZERO_PAGE:
-                """
-                This form of addressing is used in conjunction with the X index
-                register. The effective address is calculated by adding the second
-                byte to the contents of the index register. Since this is a form
-                of "Zero Page" addressing, the content of the second byte references
-                a location in page zero. Additionally, due to the “Zero Page"
-                addressing nature of this mode, no carry is added to the high order
-                8 bits of memory and crossing of page boundaries does not occur.
-                """
                 argument_bytes = self._memory.program_rom[
                     self.program_counter + 1 : self.program_counter + instruction.no_bytes
                 ]
@@ -210,15 +176,6 @@ class CPU:
                 return self.memory[operand + self.x], operand + self.x
 
             case AddressingModes.Y_INDEXED_ZERO_PAGE:
-                """
-                This form of addressing is used in conjunction with the Y index
-                register. The effective address is calculated by adding the second
-                byte to the contents of the index register. Since this is a form of
-                "Zero Page" addressing, the content of the second byte references a
-                location in page zero. Additionally, due to the “Zero Page"
-                addressing nature of this mode, no carry is added to the high
-                order 8 bits of memory and crossing of page boundaries does not occur.
-                """
                 argument_bytes = self._memory.program_rom[
                     self.program_counter + 1 : self.program_counter + instruction.no_bytes
                 ]
@@ -227,16 +184,6 @@ class CPU:
                 return self.memory[operand + self.y], operand + self.y
 
             case AddressingModes.X_INDEXED_ZERO_PAGE_INDIRECT:
-                """
-                In indexed indirect addressing, the second byte of the instruction
-                is added to the contents of the X index register, discarding the
-                carry. The result of this addition points to a memory location on
-                page zero whose contents is the low order eight bits of the effective
-                address. The next memory location in page zero contains the high
-                order eight bits of the effective address. Both memory locations
-                specifying the high and low order bytes of the effective address
-                must be in page zero.
-                """
                 argument_bytes = self._memory.program_rom[
                     self.program_counter + 1 : self.program_counter + instruction.no_bytes
                 ]
@@ -245,15 +192,6 @@ class CPU:
                 return self.memory[self.memory[operand + self.x]], self.memory[operand + self.x]
 
             case AddressingModes.ZERO_PAGE_INDIRECT_Y_INDEXED:
-                """
-                In indirect indexed addressing, the second byte of the instruction
-                points to a memory location in page zero. The contents of this
-                memory location is added to the contents of the Y index register,
-                the result being the low order eight bits of the effective address.
-                The carry from this addition is added to the contents of the next
-                page zero memory location, the result being the high order eight
-                bits of the effective address.
-                """
                 argument_bytes = self._memory.program_rom[
                     self.program_counter + 1 : self.program_counter + instruction.no_bytes
                 ]
@@ -273,9 +211,9 @@ class CPU:
                 logger.error(f"#FUCK {opcode.addressing_mode}")
                 raise SystemError
 
-    def step(self, first: bool = False):
-        if first:
-            logger.debug(self)
+    def step(self):
+        # if first:
+        # logger.debug(self)
 
         opcode_hex = self._memory.program_rom[self.program_counter]
         instruction = self.opcodes[opcode_hex]
@@ -290,12 +228,10 @@ class CPU:
         getattr(self, instruction.opcode)(instruction=instruction)
         logger.debug(self)
 
-    def execute(self):
-        first = True
+    def run(self):
+        logger.info("Starting Execution")
         while self.program_counter < len(self._memory.program_rom):
-            self.step(first=first)
-            if first:
-                first = False
+            self.step()
 
     def ADC(self, instruction: Instruction):
         # Add Memory to Accumulator with Carry
@@ -306,32 +242,32 @@ class CPU:
         self.program_counter += instruction.no_bytes
 
         # Perform the addition
-        sum_value = self.a + value + self.get_flag(Flags.CARRY)
+        sum_value = self.a + value + self.get_flag(Flag.CARRY)
 
         # Set the Carry flag if necessary
-        if sum_value > 0xFF:  #
-            self.set_flag(Flags.CARRY)
+        if sum_value > 0xFF:
+            self.set_flag(Flag.CARRY)
         else:
-            self.clear_flag(Flags.CARRY)
+            self.clear_flag(Flag.CARRY)
 
         # Update the Zero flag
         if (sum_value & 0xFF) == 0:  #
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Overflow flag
         # If the 7th bit is set and the 7th bit is not set
         if (self.a ^ value) & 0x80 == 0 and (self.a ^ sum_value) & 0x80 != 0:
-            self.set_flag(Flags.OVERFLOW)
+            self.set_flag(Flag.OVERFLOW)
         else:
-            self.clear_flag(Flags.OVERFLOW)
+            self.clear_flag(Flag.OVERFLOW)
 
         # Update the Negative flag
         if sum_value & 0x80 != 0:  # If the 7th bit is set
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Store the result in the accumulator
         self.a = sum_value & 0xFF  # Keep it 8-bit
@@ -349,15 +285,15 @@ class CPU:
 
         # Update the Zero flag
         if self.a == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
-        if self.a & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+        if self.a & Flag.NEGATIVE.value != 0:
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
     def ASL(self, instruction: Instruction):
         # Arithmetic Shift Left
@@ -369,27 +305,30 @@ class CPU:
 
         # Set the Carry flag if necessary
         if value & 0x80 != 0:
-            self.set_flag(Flags.CARRY)
+            self.set_flag(Flag.CARRY)
         else:
-            self.clear_flag(Flags.CARRY)
+            self.clear_flag(Flag.CARRY)
 
         # Shift the value left
-        value, _ = (value << 1) & 0xFF
+        value = (value << 1) & 0xFF
 
         # Update the Zero flag
         if value == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if value & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
-        # Store the result in memory
-        self._memory.write(memory_address, value)
+        if instruction.addressing_mode == AddressingModes.ACCUMULATOR:
+            self.a = value
+        else:
+            # Store the result in memory
+            self.memory[memory_address] = value
 
     def BCC(self, instruction: Instruction):
         # Branch on Carry Clear
@@ -397,7 +336,8 @@ class CPU:
 
         value, _ = self.get_memory_value(instruction)
 
-        if self.get_flag(Flags.CARRY) == 0:
+        print(value)
+        if self.get_flag(Flag.CARRY) == 0:
             self.program_counter += value
         else:
             self.program_counter += instruction.no_bytes
@@ -408,7 +348,8 @@ class CPU:
 
         value, _ = self.get_memory_value(instruction)
 
-        if self.get_flag(Flags.CARRY) == 1:
+        print(value)
+        if self.get_flag(Flag.CARRY) == 1:
             self.program_counter += value
         else:
             self.program_counter += instruction.no_bytes
@@ -420,7 +361,7 @@ class CPU:
         # Fetch the value from memory based on the addressing mode
         value, _ = self.get_memory_value(instruction)
 
-        if self.get_flag(Flags.ZERO) == 1:
+        if self.get_flag(Flag.ZERO) == 1:
             self.program_counter += value
         else:
             self.program_counter += instruction.no_bytes
@@ -437,23 +378,25 @@ class CPU:
         # Perform the AND operation
         self.a &= value
 
+        print(self.a)
+        print(value)
         # Update the Zero flag
         if self.a == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if value & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Update the Overflow flag
         if value & 0x40 != 0:
-            self.set_flag(Flags.OVERFLOW)
+            self.set_flag(Flag.OVERFLOW)
         else:
-            self.clear_flag(Flags.OVERFLOW)
+            self.clear_flag(Flag.OVERFLOW)
 
     def BMI(self, instruction: Instruction):
         # Branch on Result Minus
@@ -461,7 +404,7 @@ class CPU:
         # Fetch the value from memory based on the addressing mode
         value, _ = self.get_memory_value(instruction)
 
-        if self.get_flag(Flags.NEGATIVE) == 1:
+        if self.get_flag(Flag.NEGATIVE) == 1:
             self.program_counter += value
         else:
             self.program_counter += instruction.no_bytes
@@ -473,7 +416,7 @@ class CPU:
         # Fetch the value from memory based on the addressing mode
         value, _ = self.get_memory_value(instruction)
 
-        if self.get_flag(Flags.ZERO) == 0:
+        if self.get_flag(Flag.ZERO) == 0:
             self.program_counter = value
         else:
             self.program_counter += instruction.no_bytes
@@ -484,28 +427,37 @@ class CPU:
         # Fetch the value from memory based on the addressing mode
         value, _ = self.get_memory_value(instruction)
 
-        if self.get_flag(Flags.NEGATIVE) == 0:
+        if self.get_flag(Flag.NEGATIVE) == 0:
             self.program_counter = value
         else:
             self.program_counter += instruction.no_bytes
 
-    def BRK(self, instruction: Instruction):
-        # Force Break
-        # interrupt, push PC+2, push SR
+    def BRK(self, instruction: Optional[Instruction] = None):
+        """
+        Force Break
+        interrupt, PC + 2 toS, B toS, D toS, interrupt vector to $FFFE/$FFFF
+        The break command causes the microprocessor to go through an inter rupt sequence under program control.
+        This means that the program counter of the second byte after the BRK. is automatically stored on the stack
+        along with the processor status at the beginning of the break instruction. The microprocessor then transfers control to the interrupt vector.
 
-        print("BRKL")
-        # Push the program counter + 2 onto the stack
-        self.push_stack((self.program_counter + 2) >> 8)
-        self.push_stack((self.program_counter + 2) & 0xFF)
+        Other than changing the program counter, the break instruction changes no values in either the registers or the flags.
 
-        # Push the status register onto the stack
-        self.push_stack(self.status)
+        Note on the MOS 6502:
 
-        # Set the Interrupt Disable flag
-        self.set_flag(Flags.INTERRUPT_DISABLE)
+        If an IRQ happens at the same time as a BRK instruction, the BRK instruction is ignored.
+        """
+        # Increment program counter by size of operation (opcode + operand)
+        self.program_counter += instruction.no_bytes
 
-        # Fetch the interrupt vector from memory
-        self.program_counter = self._memory.read_word(0xFFFE)
+        # Push the program counter to the stack
+        self.push_stack(self.program_counter >> 8)
+        self.push_stack(self.program_counter & 0xFF)
+
+        # Push the status register to the stack
+        self.push_stack(self.status.value)
+
+        # Set the program counter to the interrupt vector
+        self.program_counter = self.memory[0xFFFE]
 
     def BVC(self, instruction: Instruction):
         # Branch on Overflow Clear
@@ -513,7 +465,7 @@ class CPU:
         # Fetch the value from memory based on the addressing mode
         value, _ = self.get_memory_value(instruction)
 
-        if self.get_flag(Flags.OVERFLOW) == 0:
+        if self.get_flag(Flag.OVERFLOW) == 0:
             self.program_counter += value
         else:
             self.program_counter += instruction.no_bytes
@@ -524,7 +476,7 @@ class CPU:
         # Fetch the value from memory based on the addressing mode
         value, _ = self.get_memory_value(instruction)
 
-        if self.get_flag(Flags.OVERFLOW) == 1:
+        if self.get_flag(Flag.OVERFLOW) == 1:
             self.program_counter += value
         else:
             self.program_counter += instruction.no_bytes
@@ -532,7 +484,7 @@ class CPU:
     def CLC(self, instruction: Optional[Instruction] = None):
         # Clear Carry Flag
         # 0 -> C
-        self.clear_flag(Flags.CARRY)
+        self.clear_flag(Flag.CARRY)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
@@ -541,7 +493,7 @@ class CPU:
         # Clear Decimal Mode
         # 0 -> D
 
-        self.clear_flag(Flags.DECIMAL)
+        self.clear_flag(Flag.DECIMAL)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -550,7 +502,7 @@ class CPU:
         # Clear Interrupt Disable Bit
         # 0 -> I
 
-        self.clear_flag(Flags.INTERRUPT_DISABLE)
+        self.clear_flag(Flag.INTERRUPT_DISABLE)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -559,7 +511,7 @@ class CPU:
         # Clear Overflow Flag
         # 0 -> V
 
-        self.clear_flag(Flags.OVERFLOW)
+        self.clear_flag(Flag.OVERFLOW)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -578,21 +530,21 @@ class CPU:
 
         # Update the Carry flag
         if result >= 0:
-            self.set_flag(Flags.CARRY)
+            self.set_flag(Flag.CARRY)
         else:
-            self.clear_flag(Flags.CARRY)
+            self.clear_flag(Flag.CARRY)
 
         # Update the Zero flag
         if result == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if result & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
     def CPX(self, instruction: Instruction):
         # Compare Memory and Index X
@@ -608,21 +560,21 @@ class CPU:
 
         # Update the Carry flag
         if result >= 0:
-            self.set_flag(Flags.CARRY)
+            self.set_flag(Flag.CARRY)
         else:
-            self.clear_flag(Flags.CARRY)
+            self.clear_flag(Flag.CARRY)
 
         # Update the Zero flag
         if result == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if result & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
     def CPY(self, instruction: Instruction):
         # Compare Memory and Index Y
@@ -637,21 +589,21 @@ class CPU:
 
         # Update the Carry flag
         if result >= 0:
-            self.set_flag(Flags.CARRY)
+            self.set_flag(Flag.CARRY)
         else:
-            self.clear_flag(Flags.CARRY)
+            self.clear_flag(Flag.CARRY)
 
         # Update the Zero flag
         if result == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if result & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
     def DEC(self, instruction: Instruction):
         # Decrement Memory by One
@@ -667,18 +619,18 @@ class CPU:
 
         # Update the Zero flag
         if value == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if value & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Write the value back to memory
-        self._memory.write(memory_address, value)
+        self.memory[memory_address] = value
 
     def DEX(self, instruction: Optional[Instruction] = None):
         # Decrement Index X by One
@@ -689,15 +641,15 @@ class CPU:
 
         # Update the Zero flag
         if self.x == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if self.x & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -711,15 +663,15 @@ class CPU:
 
         # Update the Zero flag
         if self.y == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag by checking the sign bit of the result
         if self.y & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -737,15 +689,15 @@ class CPU:
 
         # Update the Zero flag
         if self.a == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag by checking the sign bit of the result
         if self.a & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
     def INC(self, instruction: Instruction):
         # Increment Memory by One
@@ -761,18 +713,18 @@ class CPU:
 
         # Update the Zero flag
         if value == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if value & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Write the value back to memory
-        self._memory.write(memory_address, value)
+        self.memory[memory_address] = value
 
     def INX(self, instruction: Optional[Instruction] = None):
         # Increment Index X by One
@@ -783,15 +735,15 @@ class CPU:
 
         # Update the Zero flag
         if self.x == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if self.x & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -805,15 +757,15 @@ class CPU:
 
         # Update the Zero flag
         if self.y == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if self.y & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -856,15 +808,15 @@ class CPU:
 
         # Update the Zero flag
         if self.a == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag by checking the sign bit of the result
         if self.a & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
     def LDX(self, instruction: Instruction):
         # Load Index X with Memory
@@ -880,15 +832,15 @@ class CPU:
 
         # Update the Zero flag
         if self.x == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag by checking the sign bit of the result
         if self.x & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
     def LDY(self, instruction: Instruction):
         # Load Index Y with Memory
@@ -903,15 +855,15 @@ class CPU:
 
         # Update the Zero flag
         if self.y == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag by checking the sign bit of the result
         if self.y & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
     def LSR(self, instruction: Instruction):
         # Logical Shift Right One Bit (Memory or Accumulator)
@@ -924,27 +876,27 @@ class CPU:
         self.program_counter += instruction.no_bytes
         # Update the Carry flag by checking the least significant bit of the value
         if value & 0x01 != 0:
-            self.set_flag(Flags.CARRY)
+            self.set_flag(Flag.CARRY)
         else:
-            self.clear_flag(Flags.CARRY)
+            self.clear_flag(Flag.CARRY)
 
         # Shift the value right by one bit
         value >>= 1
 
         # Update the Zero flag
         if value == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if value & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Write the value back to memory
-        self._memory.write(memory_address, value)
+        self.memory[memory_address] = value
 
     def NOP(self, instruction: Optional[Instruction] = None):
         # No Operation
@@ -964,15 +916,15 @@ class CPU:
 
         # Update the Zero flag
         if self.a == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag by checking the sign bit of the result
         if self.a & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
     def PHA(self, instruction: Optional[Instruction] = None):
         # Push Accumulator on Stack
@@ -1003,15 +955,15 @@ class CPU:
 
         # Update the Zero flag
         if self.a == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag by checking the sign bit of the result
         if self.a & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -1037,13 +989,13 @@ class CPU:
         self.program_counter += instruction.no_bytes
 
         # Save the current value of the Carry flag
-        carry = self.get_flag(Flags.CARRY)
+        carry = self.get_flag(Flag.CARRY)
 
         # Update the Carry flag by checking the most significant bit of the value
         if value & 0x80 != 0:
-            self.set_flag(Flags.CARRY)
+            self.set_flag(Flag.CARRY)
         else:
-            self.clear_flag(Flags.CARRY)
+            self.clear_flag(Flag.CARRY)
 
         # Shift the value left by one bit
         value <<= 1
@@ -1054,15 +1006,15 @@ class CPU:
 
         # Update the Zero flag
         if value == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if value & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Write the value back to memory
         self.memory.write(memory_address, value)
@@ -1077,13 +1029,13 @@ class CPU:
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
         # Save the current value of the Carry flag
-        carry = self.get_flag(Flags.CARRY)
+        carry = self.get_flag(Flag.CARRY)
 
         # Update the Carry flag by checking the least significant bit of the value
         if value & 0x01 != 0:
-            self.set_flag(Flags.CARRY)
+            self.set_flag(Flag.CARRY)
         else:
-            self.clear_flag(Flags.CARRY)
+            self.clear_flag(Flag.CARRY)
 
         # Shift the value right by one bit
         value >>= 1
@@ -1094,18 +1046,18 @@ class CPU:
 
         # Update the Zero flag
         if value == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if value & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Write the value back to memory
-        self._memory.write(memory_address, value)
+        self.memory[memory_address] = value
 
     def RTI(self, instruction: Optional[Instruction] = None):
         # Return from Interrupt
@@ -1136,31 +1088,31 @@ class CPU:
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
         # Perform the subtraction
-        result = self.a - value - (1 - self.get_flag(Flags.CARRY))
+        result = self.a - value - (1 - self.get_flag(Flag.CARRY))
 
         # Update the Carry flag
         if result < 0:
-            self.clear_flag(Flags.CARRY)
+            self.clear_flag(Flag.CARRY)
         else:
-            self.set_flag(Flags.CARRY)
+            self.set_flag(Flag.CARRY)
 
         # Update the Overflow flag
         if (self.a ^ result) & (value ^ result) & 0x80 != 0:
-            self.set_flag(Flags.OVERFLOW)
+            self.set_flag(Flag.OVERFLOW)
         else:
-            self.clear_flag(Flags.OVERFLOW)
+            self.clear_flag(Flag.OVERFLOW)
 
         # Update the Zero flag
         if result == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if result & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Write the result back to the accumulator
         self.a = result & 0xFF
@@ -1170,7 +1122,7 @@ class CPU:
         # 1 -> C
 
         # Set the Carry flag
-        self.set_flag(Flags.CARRY)
+        self.set_flag(Flag.CARRY)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -1180,7 +1132,7 @@ class CPU:
         # 1 -> D
 
         # Set the Decimal flag
-        self.set_flag(Flags.DECIMAL)
+        self.set_flag(Flag.DECIMAL)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -1190,7 +1142,7 @@ class CPU:
         # 1 -> I
 
         # Set the Interrupt flag
-        self.set_flag(Flags.INTERRUPT_DISABLE)
+        self.set_flag(Flag.INTERRUPT_DISABLE)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -1206,7 +1158,7 @@ class CPU:
         self.program_counter += instruction.no_bytes
 
         # Write the accumulator to memory based on the addressing mode
-        self._memory.write(memory_address, self.a)
+        self.memory[memory_address] = self.a
 
     def STX(self, instruction: Instruction):
         # Store Index X in Memory
@@ -1217,7 +1169,7 @@ class CPU:
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
         # Write the X register to memory based on the addressing mode
-        self._memory.write(memory_address, self.x)
+        self.memory[memory_address] = self.x
 
     def STY(self, instruction: Instruction):
         # Store Index Y in Memory
@@ -1240,15 +1192,15 @@ class CPU:
 
         # Update the Zero flag
         if self.x == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if self.x & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -1262,15 +1214,15 @@ class CPU:
 
         # Update the Zero flag
         if self.y == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if self.y & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -1284,15 +1236,15 @@ class CPU:
 
         # Update the Zero flag
         if self.x == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if self.x & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -1306,15 +1258,15 @@ class CPU:
 
         # Update the Zero flag
         if self.a == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if self.a & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -1338,15 +1290,15 @@ class CPU:
 
         # Update the Zero flag
         if self.a == 0:
-            self.set_flag(Flags.ZERO)
+            self.set_flag(Flag.ZERO)
         else:
-            self.clear_flag(Flags.ZERO)
+            self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
         if self.a & 0x80 != 0:
-            self.set_flag(Flags.NEGATIVE)
+            self.set_flag(Flag.NEGATIVE)
         else:
-            self.clear_flag(Flags.NEGATIVE)
+            self.clear_flag(Flag.NEGATIVE)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes

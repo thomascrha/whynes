@@ -99,8 +99,8 @@ class Cartridge:
 
     type: CartridgeFormat
     header: Annotated[List[bytes], HEX_16]
-    program_rom: List[bytes]
-    character_rom: List[bytes]
+    program_rom: bytearray
+    character_rom: bytearray
     program_rom_size: int
     character_rom_size: int
     program_rom_size_multiplier: int

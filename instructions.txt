@@ -43,6 +43,7 @@ Relative	BEQ $nnnn	$F0	2	2+t+p
 BIT - Test Bits in Memory with Accumulator
 Addressing Mode	Assembly Language Form	Opcode	No. Bytes	No. Cycles
 Absolute	BIT $nnnn	$2C	3	4
+Zero Page	BIT $nn	$24	2	3
 
 BMI - Branch on Result Minus
 Addressing Mode	Assembly Language Form	Opcode	No. Bytes	No. Cycles
@@ -54,6 +55,7 @@ Relative	BNE $nnnn	$D0	2	2+t+p
 
 BPL - Branch on Result Plus
 Addressing Mode	Assembly Language Form	Opcode	No. Bytes	No. Cycles
+Relative	BPL $nnnn	$10	2	2+t+p
 
 BRK - Break Command
 Addressing Mode	Assembly Language Form	Opcode	No. Bytes	No. Cycles
@@ -70,6 +72,10 @@ Relative	BVS $nnnn	$70	2	2+t+p
 CLC - Clear Carry Flag
 Addressing Mode	Assembly Language Form	Opcode	No. Bytes	No. Cycles
 Implied	CLC 	$18	1	2
+
+CLD - Clear Decimal Mode
+Addressing Mode	Assembly Language Form	Opcode	No. Bytes	No. Cycles
+Implied	CLD 	$D8	1	2
 
 CLI - Clear Interrupt Disable
 Addressing Mode	Assembly Language Form	Opcode	No. Bytes	No. Cycles

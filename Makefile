@@ -8,7 +8,7 @@ setup-local:
 .PHONY: setup-local
 
 test:
-	poetry run pytest
+	poetry run pytest -x -vv --cov=nes_emulator --cov-report=term-missing
 .PHONY: test
 
 run:

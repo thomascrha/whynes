@@ -1,8 +1,10 @@
 import argparse
+import asyncio
 from pathlib import Path
 from cartrige import Cartridge
 from cpu import CPU
 from memory import Memory
+from pydantic import conbytes
 
 
 class Console:
@@ -24,7 +26,12 @@ if __name__ == "__main__":
         help="The filepath of the rom being loaded into the cartridge",
     )
 
+    event_loop = asyncio.new_event_loop()
     args = parser.parse_args()
     console = Console(**args.__dict__)
     console.load_cartridge()
-    console.cpu.execute()
+    console.cpu.run()
+
+    # if __name__ == "__main__":
+#     app = StopwatchApp()
+#     app.run()
