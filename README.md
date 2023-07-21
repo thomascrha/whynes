@@ -20,6 +20,9 @@ I've always wanted to learn how to write an emulator, but I don't know other
 more suitable languages to do that in - so I thought why not just write one in python.
 Is writing a emulator in python a good idea ? The really depends on your motivation.
 
+Then I can implement the same emulator in other languages and *bing bong boom* I've become
+a `giga-polyglot-chad programmer`.
+
 ## Rules
 
 1. When Mario can jump, I've finished.
