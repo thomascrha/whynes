@@ -6,6 +6,8 @@ A Nintendo Entertainment System emulator that is written in python
 
 ## Why ?
 
+![why?](https://i.imgur.com/Ve9LFut.mp4)
+
 Why not. This is a project designed as an educational experiment so I can do two things:
 
 * learn about how to emulate hardware in software
