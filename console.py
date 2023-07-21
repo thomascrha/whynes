@@ -28,7 +28,6 @@ if __name__ == "__main__":
         help="The filepath of the rom being loaded into the cartridge",
     )
 
-    event_loop = asyncio.new_event_loop()
     args = parser.parse_args()
     console = Console(**args.__dict__)
     console.load_cartridge()
