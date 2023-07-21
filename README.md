@@ -1,6 +1,6 @@
 # whynes
 
-![whynes](https://github.com/thomascrha/whynes/blob/main/whynes.png?raw=true)
+<img src="https://github.com/thomascrha/whynes/blob/main/whynes.png?raw=true" width="250" height="250">
 
 A Nintendo Entertainment System emulator that is written in python
 
