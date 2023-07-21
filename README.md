@@ -6,7 +6,7 @@ A Nintendo Entertainment System emulator that is written in python
 
 ## Why ?
 
-![why?](https://i.imgur.com/Ve9LFut.mp4)
+![why?](https://media.tenor.com/KA4TdkOcYT8AAAAM/jeff-goldblum.gif)
 
 Why not. This is a project designed as an educational experiment so I can do two things:
 
