@@ -10,8 +10,8 @@ A Nintendo Entertainment System emulator that is written in python
 
 Why not. This is a project designed as an educational experiment so I can do two things:
 
-* learn about how to emulate hardware in software
-* use the knowledge gained in this project to then learn other languages.
+* learn how to emulate hardware in software.
+* use that knowledge to then learn other languages.
 
 I know python pretty well - I've been using it professionally for (insert flex) years
 and a I'm pretty comfortable with it (no error; good program).

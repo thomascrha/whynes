@@ -29,6 +29,10 @@ class CPU:
     memory: Memory
     opcodes: dict
 
+    instruction: Optional[Instruction]
+    assembly: Optional[str]
+    memory_allocation: Optional[str]
+
     def __init__(self, memory: Memory) -> None:
         # registers
         # program counter is 16 bits
@@ -54,6 +58,10 @@ class CPU:
         self.memory = memory
         self.opcodes = load_opcodes()
 
+        self.instruction = None
+        self.assembly = None
+        self.memory_allocation = None
+
     @property
     def state(self):
         return {
@@ -77,7 +85,7 @@ class CPU:
             self.memory.memory = state["memory"]
 
     def __str__(self):
-        return f"CPU: A: {self.a}, X: {self.x}, Y: {self.y}, PC: {self.program_counter}, SP: {self.stack_pointer}, S: {self.status}"
+        return f"{self.program_counter}\t{self.instruction}\t{self.assembly}\t{self.memory_allocation}\tA:{self.a} X:{self.x} Y:{self.y} P:{self.status} SP:{self.stack_pointer}"
 
     # Flag operations
     def set_flag(self, flag: Flag):
@@ -131,7 +139,11 @@ class CPU:
             logger.error(f"FUCK {instruction}")
             raise SystemError
 
+        # information = getattr(self, instruction.opcode)(instruction=instruction)
+        # self.log_step(information)
+
         getattr(self, instruction.opcode)(instruction=instruction)
+
         logger.debug(self)
 
     def run(self):
