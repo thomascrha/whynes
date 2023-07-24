@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path
-from cartrige import Cartridge
+from cartridge import Cartridge
 from cpu import CPU
 from memory import Memory
 

@@ -1,5 +1,6 @@
 import enum
 from typing import Optional
+from constants import PROGRAM_ROM_START
 from instructions import AddressingModes, Instruction, load_opcodes
 from logger import get_logger
 from memory import Memory

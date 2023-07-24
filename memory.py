@@ -1,15 +1,23 @@
+from time import process_time
 from typing import Optional, Tuple
-from cartrige import Cartridge
+from cartridge import Cartridge
+from constants import CHARACTER_ROM_END, CHARACTER_ROM_START, PROGRAM_ROM_END, PROGRAM_ROM_START
 from instructions import AddressingModes, Instruction
 from utils import get_bytes_ordered
 
 
 class Memory:
+    memory: bytearray
+    program_rom: bytearray
+    character_rom: bytearray
+    cartridge: Optional[Cartridge]
+
     def __init__(self):
-        self.memory: bytearray = bytearray([0] * 0xFFFF)
-        self.cartridge: Optional[Cartridge] = None
-        self.program_rom: bytearray = bytearray()
-        self.character_rom: bytearray = bytearray()
+        self.memory = bytearray([0] * 0xFFFF)
+        self.cartridge = None
+
+        self.program_rom = self.memory[PROGRAM_ROM_START:PROGRAM_ROM_END]
+        self.character_rom = self.memory[CHARACTER_ROM_START:CHARACTER_ROM_END]
 
     def load_bytes(self, program_rom: bytearray, character_rom: Optional[bytearray] = None):
         self.program_rom = program_rom

@@ -1,5 +1,14 @@
 from typing import List
 
+HEX_16 = 0xFFFF
+HEX_8 = 0xFF
+
+MEMORY_SIZE = 0xFFFF
+PROGRAM_ROM_START = 0x8000
+PROGRAM_ROM_END = 0xFFFF
+CHARACTER_ROM_START = 0x0000
+CHARACTER_ROM_END = 0x1FFF
+
 
 def get_bytes_ordered(bytes_: List[bytes]) -> List[bytes]:
     if len(bytes_) == 1:
