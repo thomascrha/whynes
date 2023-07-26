@@ -9,7 +9,12 @@ ROM_PATH = Path("files/nestest.nes")
 
 
 def parse_log_line(log_line: str) -> Dict[str, str]:
-    return log_line.split(" ")
+    parts = log_line.split("  ")
+    program_counter = parts[0]
+    instruction = parts[1]
+    assembly = parts[2]
+    state = "".join(parts[-2:]).strip().replace(", ", ",")
+    return dict(program_counter=program_counter, instruction=instruction, assembly=assembly, state=state)
 
 
 def test_nestest_rom(
@@ -24,8 +29,8 @@ def test_nestest_rom(
     #     log = parse_log_line(f.readline())
     #
     #     cpu.step()
-    #     print(log)
-    #     assert str(cpu) == log
+    #     # print(log)
+    #     # assert str(cpu) == log
     #
-    #     cpu.step()
+    #     # cpu.step()
     pass

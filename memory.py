@@ -1,4 +1,3 @@
-from time import process_time
 from typing import Optional, Tuple
 from cartridge import Cartridge
 from constants import CHARACTER_ROM_END, CHARACTER_ROM_START, PROGRAM_ROM_END, PROGRAM_ROM_START

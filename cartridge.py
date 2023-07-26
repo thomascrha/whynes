@@ -56,7 +56,7 @@ class Cartridge:
             f"The PRG ROM size is {int(self.program_rom_size_multiplier)}x16Kb = {hex(self.program_rom_size)}"
         )
         self.logger.debug(
-            f"The CHR ROM size is {int(self.character_rom_size_multiplier)}x8Kb = {hex(self.program_rom_size)}"
+            f"The CHR ROM size is {int(self.character_rom_size_multiplier)}x8Kb = {hex(self.character_rom_size)}"
         )
 
         if self.type in [CartridgeFormat.ines, CartridgeFormat.ines07]:
