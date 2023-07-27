@@ -1,12 +1,11 @@
-# whynes
+# 🕹️whynes
+<img src="https://github.com/thomascrha/whynes/blob/main/whynes.png?raw=true" align="middle" width="250" height="250">
 
-<img src="https://github.com/thomascrha/whynes/blob/main/whynes.png?raw=true" width="250" height="250">
-
-A Nintendo Entertainment System emulator that is written in python
+__A Nintendo Entertainment System emulator written in python.__
 
 ## Why ?
 
-<img src="https://media.tenor.com/KA4TdkOcYT8AAAAM/jeff-goldblum.gif" width="100%">
+<img src="https://media.tenor.com/KA4TdkOcYT8AAAAM/jeff-goldblum.gif" width="70%">
 
 Why not. This is a project designed as an educational experiment so I can do two things:
 
@@ -34,3 +33,5 @@ a `giga-polyglot-chad programmer`.
 [Online Assembler/Dissembler](https://skilldrick.github.io/easy6502/)
 
 [Instruction Set Manual](https://www.pagetable.com/c64ref/6502/?tab=2)
+
+[Writing NES Emulator in Rust](https://bugzmanov.github.io/nes_ebook/chapter_1.html)
