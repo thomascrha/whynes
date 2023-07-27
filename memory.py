@@ -11,19 +11,31 @@ class Memory:
     character_rom: bytearray
     cartridge: Optional[Cartridge]
 
-    def __init__(self):
-        self.memory = bytearray([0] * 0xFFFF)
+    def __init__(self, address_space: int = 0xFFFF) -> None:
+        self.address_space = address_space
+        self.memory = bytearray([0] * self.address_space)
         self.cartridge = None
 
+    def setup_snake(self) -> None:
+        self.character_rom = self.memory[0x0200:0x0600]
+        self.program_rom = self.memory[0x0600:0xFFFF]
+
+    def __getitem__(self, key: int) -> int:
+        return self.memory[key]
+
+    def __setitem__(self, key: int, value: int) -> None:
+        self.memory[key] = value
+
+    def setup_nes(self) -> None:
         self.program_rom = self.memory[PROGRAM_ROM_START:PROGRAM_ROM_END]
         self.character_rom = self.memory[CHARACTER_ROM_START:CHARACTER_ROM_END]
 
-    def load_bytes(self, program_rom: bytearray, character_rom: Optional[bytearray] = None):
+    def load_bytes(self, program_rom: bytearray, character_rom: Optional[bytearray] = None) -> None:
         self.program_rom = program_rom
         if character_rom is not None:
             self.character_rom = character_rom
 
-    def load_cartridge(self, cartridge: Cartridge):
+    def load_cartridge(self, cartridge: Cartridge) -> None:
         self.cartridge = cartridge
         self.load_bytes(program_rom=cartridge.program_rom, character_rom=cartridge.character_rom)
 

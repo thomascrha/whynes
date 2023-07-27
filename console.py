@@ -15,7 +15,7 @@ class Console:
         self.memory = Memory()
         self.cpu = CPU(self.memory)
 
-    def load_cartridge(self):
+    def load_cartridge(self) -> None:
         self.memory.load_cartridge(self.cartrige)
 
 

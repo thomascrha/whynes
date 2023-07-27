@@ -112,19 +112,27 @@ class CPU:
 
         return value
 
-    # def pull_stack_word(self):
-    #     # Read the value from the stack
-    #     value, _ = self.memory.read_word(0x0100 + self.stack_pointer)
-    #
-    #     # Increment the stack pointer
-    #     self.stack_pointer += 2
-    #
-    #     return value
-    #
-    # def push_stack_word(self, value):
-    #     # Push a value onto the stack
-    #     self.memory.write_word(0x0100 + self.stack_pointer, value)
-    #     self.stack_pointer -= 2
+    def pull_stack_word(self):
+        # Read the value from the stack
+        value = self.memory.memory[0x0100 + self.stack_pointer]
+
+        # Increment the stack pointer
+        self.stack_pointer += 1
+
+        value |= self.memory.memory[0x0100 + self.stack_pointer] << 8
+
+        # Increment the stack pointer
+        self.stack_pointer += 1
+
+        return value
+
+    def push_stack_word(self, value):
+        # Push a value onto the stack
+        self.memory.memory[0x0100 + self.stack_pointer] = value >> 8
+        self.stack_pointer -= 1
+
+        self.memory.memory[0x0100 + self.stack_pointer] = value & 0xFF
+        self.stack_pointer -= 1
 
     def step(self):
         # if first:
@@ -932,7 +940,7 @@ class CPU:
             self.clear_flag(Flag.NEGATIVE)
 
         # Write the value back to memory
-        self.memory.write(memory_address, value)
+        self.memory.set_memory(memory_address, value)
 
     def ROR(self, instruction: Instruction):
         # Rotate One Bit Right (Memory or Accumulator)
