@@ -1,17 +1,11 @@
+import asyncio
+import logging
 import random
 from typing import Optional
 from cpu import CPU
+from logger import get_logger
 from memory import Memory
 from pynput.keyboard import Key, Listener
-
-
-def threaded(fn):
-    def wrapper(*args, **kwargs):
-        import threading
-
-        threading.Thread(target=fn, args=args, kwargs=kwargs).start()
-
-    return wrapper
 
 
 class SnakeGame:
@@ -42,15 +36,20 @@ class SnakeGame:
 
     memory: Memory
     cpu: CPU
+    logger: logging.Logger
 
     def __init__(self):
 
+        self.logger = get_logger(__name__)
         self.memory = Memory()
         self.memory.setup_snake()
         self.memory.load_bytes(program_rom=self.CODE)
         self.cpu = CPU(memory=self.memory)
 
-        self.read_input()
+        self.event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.event_loop)
+        self.event_loop.create_task(self.read_input())
+        self.event_loop.run_forever()
 
         self.last_key_pressed = None
         while True:
@@ -61,9 +60,9 @@ class SnakeGame:
 
             self.memory[0xFF] = random.randint(0, 0xFF)
 
-    @threaded
-    def read_input(self) -> Optional[int]:
+    async def read_input(self) -> Optional[int]:
         def on_press(key):
+            self.logger.info(key)
             if key == Key.up:
                 self.last_key_pressed = 0x77
             elif key == Key.down:

@@ -1,5 +1,6 @@
 import functools
 import logging
+import os
 from copy import copy
 from typing import Dict
 
@@ -42,7 +43,8 @@ class ColoredFormatter(logging.Formatter):
 @functools.lru_cache
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
-    logger.setLevel(logging.DEBUG)
+    logging_level = os.environ.get("LOGGING_LEVEL", "DEBUG")
+    logger.setLevel(getattr(logging, logging_level))
 
     consoleHandler = logging.StreamHandler()
     consoleHandler.setLevel(logging.DEBUG)
