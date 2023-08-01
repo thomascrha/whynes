@@ -11,4 +11,4 @@ def get_memory_map(changed_values: Dict) -> List[int]:
 
 
 DEFAULT_FLAG = Flag.INTERRUPT_DISABLE | Flag.UNUSED
-DEFAULT_STATE = {"A": 0, "PC": 0, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255, "memory": get_memory_map({})}
+DEFAULT_STATE = {"A": 0, "PC": 0, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255}

@@ -1,6 +1,8 @@
 import enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
+
+# from cpu import CPU
 
 
 class AddressingModes(str, enum.Enum):
@@ -85,6 +87,7 @@ class Instruction:
         opcode_hex: int,
         addressing_mode: AddressingModes,
         no_bytes: int,
+        run: Callable,
         cycles: int,
         cycle_flags: List[Optional[str]],
     ) -> None:
@@ -96,12 +99,13 @@ class Instruction:
         self.no_bytes = no_bytes
         self.assembly = None
         self.assembly_hex = None
+        self.run = run
 
     def __str__(self) -> str:
         return f"{self.opcode} - {self.addressing_mode} - {self.no_bytes}"
 
 
-def parse_opcode_addressing_mode(table: List[str], opcode_name: str) -> Dict[int, Instruction]:
+def parse_opcode_addressing_mode(cpu: "CPU", table: List[str], opcode_name: str) -> Dict[int, Instruction]:
     table_headers = table[0].split("\t")
     opcodes = {}
     for opcode in table[1:]:
@@ -119,6 +123,7 @@ def parse_opcode_addressing_mode(table: List[str], opcode_name: str) -> Dict[int
 
         opcodes[key] = Instruction(
             opcode=getattr(Opcodes, opcode_name.upper()),
+            run=getattr(cpu, opcode_name.upper()),
             addressing_mode=getattr(AddressingModes, addressing_mode),
             no_bytes=int(row["No. Bytes"]),
             opcode_hex=hex(key).split("x")[1:][0],
@@ -129,7 +134,7 @@ def parse_opcode_addressing_mode(table: List[str], opcode_name: str) -> Dict[int
     return opcodes
 
 
-def load_opcodes(file_path: Path = Path("./instructions.txt")) -> Dict[int, Instruction]:
+def load_opcodes(cpu: "CPU", file_path: Path = Path("./instructions.txt")) -> Dict[int, Instruction]:
     with open(file_path, "r") as f:
         opcodes = ",".join(f.readlines())
         opcodes = opcodes.split("\n,\n,")
@@ -138,6 +143,6 @@ def load_opcodes(file_path: Path = Path("./instructions.txt")) -> Dict[int, Inst
     _opcodes = {}
     for opcode in opcodes:
         opcode_name = getattr(Opcodes, opcode[0].split(" - ")[0])
-        _opcodes = {**_opcodes, **parse_opcode_addressing_mode(opcode[1:], opcode_name)}
+        _opcodes = {**_opcodes, **parse_opcode_addressing_mode(cpu, opcode[1:], opcode_name)}
 
     return _opcodes

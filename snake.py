@@ -60,7 +60,7 @@ class SnakeGame:
         self.memory = Memory()
         # self.memory.setup_snake()
         self.memory.load_program_rom(program_rom=self.CODE, program_rom_offset=0x0600)
-        self.cpu = CPU(memory=self.memory, program_offset=0x0600)
+        self.cpu = CPU(memory=self.memory, program_rom_offset=0x0600)
 
         if self.display:
             self.init_display()
@@ -83,7 +83,7 @@ class SnakeGame:
             if self.display:
                 self.update_display()
 
-
+    def __del__(self):
         pygame.quit()
 
     def init_display(self):

@@ -49,7 +49,6 @@ class Test1:
             "SP": 0xFF,
             "PC": 0x0002,
             "S": DEFAULT_FLAG | Flag.NEGATIVE,
-            "memory": get_memory_map({}),
         },
         {
             "A": 0xC0,
@@ -58,7 +57,6 @@ class Test1:
             "SP": 0xFF,
             "PC": 0x0003,
             "S": DEFAULT_FLAG | Flag.NEGATIVE,
-            "memory": get_memory_map({}),
         },
         {
             "A": 0xC0,
@@ -67,7 +65,6 @@ class Test1:
             "SP": 0xFF,
             "PC": 0x0004,
             "S": DEFAULT_FLAG | Flag.NEGATIVE,
-            "memory": get_memory_map({}),
         },
         {
             "A": 0x84,
@@ -76,7 +73,6 @@ class Test1:
             "SP": 0xFF,
             "PC": 0x0006,
             "S": DEFAULT_FLAG | Flag.NEGATIVE | Flag.CARRY,
-            "memory": get_memory_map({}),
         },
         {
             "A": 0x84,
@@ -85,7 +81,6 @@ class Test1:
             "SP": 0xFC,
             "PC": 0x0000,
             "S": DEFAULT_FLAG | Flag.NEGATIVE | Flag.CARRY,
-            "memory": get_memory_map({0x1FD: 0xA5, 0x1FE: 0x7}),
         },
     ]
     dissassembly_command_order: List[Tuple[Opcodes, AddressingModes]] = [
@@ -162,8 +157,8 @@ class Test1:
 )
 def test_assembly_cpu(program_rom: bytearray, cycle_states: list, dissassembly_command_order: list):
     memory = Memory()
-    memory.load_bytes(program_rom=program_rom)
-    cpu = CPU(memory=memory)
+    memory.load_program_rom(program_rom=program_rom, program_rom_offset=0x0000)
+    cpu = CPU(memory=memory, program_rom_offset=0x0000)
 
     for i, cycle_state in enumerate(cycle_states):
         cpu.step()
@@ -174,8 +169,6 @@ def test_assembly_cpu(program_rom: bytearray, cycle_states: list, dissassembly_c
         assert cpu.state["SP"] == cycle_state["SP"]
         assert cpu.state["PC"] == cycle_state["PC"]
         assert cpu.state["S"] == cycle_state["S"]
-        # TODO: fix memory - and work out why it seems to start an infinite loop
-        # assert cpu.state["memory"] == cycle_state["memory"]
 
         assert cpu.instruction.opcode == dissassembly_command_order[i][0]
         assert cpu.instruction.addressing_mode == dissassembly_command_order[i][1]
