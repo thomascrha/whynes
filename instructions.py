@@ -79,10 +79,23 @@ class Opcodes(str, enum.Enum):
 
 
 class Instruction:
-    def __init__(self, opcode: Opcodes, addressing_mode: AddressingModes, no_bytes: int) -> None:
+    def __init__(
+        self,
+        opcode: Opcodes,
+        opcode_hex: int,
+        addressing_mode: AddressingModes,
+        no_bytes: int,
+        cycles: int,
+        cycle_flags: List[Optional[str]],
+    ) -> None:
         self.opcode = opcode
+        self.opcode_hex = opcode_hex
         self.addressing_mode = addressing_mode
+        self.cycles = cycles
+        self.cycle_flags = cycle_flags
         self.no_bytes = no_bytes
+        self.assembly = None
+        self.assembly_hex = None
 
     def __str__(self) -> str:
         return f"{self.opcode} - {self.addressing_mode} - {self.no_bytes}"
@@ -97,10 +110,20 @@ def parse_opcode_addressing_mode(table: List[str], opcode_name: str) -> Dict[int
         # it to an int
         key = int("".join(row["Opcode"][1:]), 16)
         addressing_mode = row["Addressing Mode"].replace(" ", "_").replace("-", "_").upper()
+        cycles = row["No. Cycles"]
+        cycle_flags = []
+        if "+" in cycles:
+            cycles = cycles.split("+")
+            cycle_flags = cycles[1:]
+            cycles = cycles[:1][0]
+
         opcodes[key] = Instruction(
             opcode=getattr(Opcodes, opcode_name.upper()),
             addressing_mode=getattr(AddressingModes, addressing_mode),
             no_bytes=int(row["No. Bytes"]),
+            opcode_hex=hex(key).split("x")[1:][0],
+            cycles=int(cycles),
+            cycle_flags=cycle_flags,
         )
 
     return opcodes

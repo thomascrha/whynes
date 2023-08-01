@@ -29,22 +29,24 @@ class CPU:
     status: Flag
     memory: Memory
     opcodes: dict
+    cycles: int
 
     instruction: Optional[Instruction]
     assembly: Optional[str]
     memory_allocation: Optional[str]
 
-    def __init__(self, memory: Memory) -> None:
+    def __init__(self, memory: Memory, program_offset: int) -> None:
         # registers
         # program counter is 16 bits
-        self.program_counter = 0x0000
+        self.program_offset = program_offset
+        self.program_counter = program_offset
         # accumulator is 8 bits
         self.a = 0x00
         # x and y registers are 8 bits
         self.x = 0x00
         self.y = 0x00
         # stack pointer is 8 bits but the stack is 256 bytes
-        self.stack_pointer = 0xFF
+        self.stack_pointer = 0xFD
         # stats register is 8 bits where is bit is repersented by the Flags enum
         # 0x00 = 0b00100000
         # 0x01 = 0b00100001
@@ -56,6 +58,7 @@ class CPU:
         # 0x07 = 0b00100111
         self.status = Flag(0b00100100)
 
+        self.cycles = 0
         self.memory = memory
         self.opcodes = load_opcodes()
 
@@ -86,7 +89,7 @@ class CPU:
             self.memory.memory = state["memory"]
 
     def __str__(self):
-        return f"{self.program_counter}\t{self.instruction}\t{self.assembly}\t{self.memory_allocation}\tA:{self.a} X:{self.x} Y:{self.y} P:{self.status} SP:{self.stack_pointer}"
+        return f"{self.program_counter}\t{self.instruction.assembly_hex}\tA:{self.a} X:{self.x} Y:{self.y} P:{self.status} SP:{self.stack_pointer}"
 
     # Flag operations
     def set_flag(self, flag: Flag):
@@ -98,51 +101,71 @@ class CPU:
     def get_flag(self, flag: Flag):
         return bool(self.status & flag)
 
-    def push_stack(self, value):
-        # Push a value onto the stack
-        self.memory.memory[0x0100 + self.stack_pointer] = value
+    def stack_pop(self):
+        self.stack_pointer += 1
+        return self.memory[0x0100 + self.stack_pointer]
+
+    def stack_push(self, data):
+        self.memory[0x0100 + self.stack_pointer] = data
         self.stack_pointer -= 1
 
-    def pull_stack(self):
-        # Read the value from the stack
-        value = self.memory.memory[0x0100 + self.stack_pointer]
+    def stack_push_word(self, data):
+        hi = (data >> 8) & 0xFF
+        lo = data & 0xFF
+        self.stack_push(hi)
+        self.stack_push(lo)
 
-        # Increment the stack pointer
-        self.stack_pointer += 1
+    def stack_pop_word(self):
+        lo = self.stack_pop()
+        hi = self.stack_pop()
+        return (hi << 8) | lo
 
-        return value
-
-    def pull_stack_word(self):
-        # Read the value from the stack
-        value = self.memory.memory[0x0100 + self.stack_pointer]
-
-        # Increment the stack pointer
-        self.stack_pointer += 1
-
-        value |= self.memory.memory[0x0100 + self.stack_pointer] << 8
-
-        # Increment the stack pointer
-        self.stack_pointer += 1
-
-        return value
-
-    def push_stack_word(self, value):
-        # Push a value onto the stack
-        self.memory.memory[0x0100 + self.stack_pointer] = value >> 8
-        self.stack_pointer -= 1
-
-        self.memory.memory[0x0100 + self.stack_pointer] = value & 0xFF
-        self.stack_pointer -= 1
-
+    # def push_stack(self, value):
+    #     # Push a value onto the stack
+    #     self.memory.memory[0x0100 + self.stack_pointer] = value
+    #     self.stack_pointer -= 1
+    #
+    # def stack_pop(self):
+    #     # Read the value from the stack
+    #     value = self.memory.memory[0x0100 + self.stack_pointer]
+    #
+    #     # Increment the stack pointer
+    #     self.stack_pointer += 1
+    #
+    #     return value
+    #
+    # def stack_pop_word(self):
+    #     # Read the value from the stack
+    #     value = self.memory.memory[0x0100 + self.stack_pointer]
+    #
+    #     # Increment the stack pointer
+    #     self.stack_pointer += 1
+    #
+    #     value |= self.memory.memory[0x0100 + self.stack_pointer] << 8
+    #
+    #     # Increment the stack pointer
+    #     self.stack_pointer += 1
+    #
+    #     return value
+    #
+    # def push_stack_word(self, value):
+    #     # Push a value onto the stack
+    #     self.memory.memory[0x0100 + self.stack_pointer] = value >> 8
+    #     self.stack_pointer -= 1
+    #
+    #     self.memory.memory[0x0100 + self.stack_pointer] = value & 0xFF
+    #     self.stack_pointer -= 1
+    #
     def step(self):
         # if first:
         # logger.debug(self)
 
-        opcode_hex = self.memory.program_rom[self.program_counter]
+        opcode_hex = self.memory[self.program_counter]
         instruction = self.opcodes[opcode_hex]
 
         self.instruction = instruction
         logger.debug(instruction)
+        logger.debug(self)
 
         if not hasattr(self, instruction.opcode.value.upper()):
             logger.error(f"FUCK {instruction}")
@@ -152,8 +175,6 @@ class CPU:
         # self.log_step(information)
 
         getattr(self, instruction.opcode)(instruction=instruction)
-
-        logger.debug(self)
 
     def run(self):
         logger.info("Starting Execution")
@@ -369,15 +390,17 @@ class CPU:
 
         If an IRQ happens at the same time as a BRK instruction, the BRK instruction is ignored.
         """
+        self.memory.get_memory_value(instruction, self)
+
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
 
         # Push the program counter to the stack
-        self.push_stack(self.program_counter >> 8)
-        self.push_stack(self.program_counter & 0xFF)
+        self.stack_push(self.program_counter >> 8)
+        self.stack_push(self.program_counter & 0xFF)
 
         # Push the status register to the stack
-        self.push_stack(self.status.value)
+        self.stack_push(self.status.value)
 
         # Set the program counter to the interrupt vector
         self.program_counter = self.memory.memory[0xFFFE]
@@ -407,6 +430,7 @@ class CPU:
     def CLC(self, instruction: Instruction):
         # Clear Carry Flag
         # 0 -> C
+        self.memory.get_memory_value(instruction, self)
         self.clear_flag(Flag.CARRY)
 
         # Increment program counter by size of operation (opcode + operand)
@@ -416,6 +440,7 @@ class CPU:
         # Clear Decimal Mode
         # 0 -> D
 
+        self.memory.get_memory_value(instruction, self)
         self.clear_flag(Flag.DECIMAL)
 
         # Increment the program counter
@@ -425,6 +450,7 @@ class CPU:
         # Clear Interrupt Disable Bit
         # 0 -> I
 
+        self.memory.get_memory_value(instruction, self)
         self.clear_flag(Flag.INTERRUPT_DISABLE)
 
         # Increment the program counter
@@ -434,6 +460,7 @@ class CPU:
         # Clear Overflow Flag
         # 0 -> V
 
+        self.memory.get_memory_value(instruction, self)
         self.clear_flag(Flag.OVERFLOW)
 
         # Increment the program counter
@@ -449,25 +476,10 @@ class CPU:
         self.program_counter += instruction.no_bytes
 
         # Perform the subtraction
-        result = self.a - value
-
-        # Update the Carry flag
-        if result >= 0:
+        if self.a >= value:
             self.set_flag(Flag.CARRY)
         else:
             self.clear_flag(Flag.CARRY)
-
-        # Update the Zero flag
-        if result == 0:
-            self.set_flag(Flag.ZERO)
-        else:
-            self.clear_flag(Flag.ZERO)
-
-        # Update the Negative flag
-        if result & 0x80 != 0:
-            self.set_flag(Flag.NEGATIVE)
-        else:
-            self.clear_flag(Flag.NEGATIVE)
 
     def CPX(self, instruction: Instruction):
         # Compare Memory and Index X
@@ -479,25 +491,10 @@ class CPU:
         self.program_counter += instruction.no_bytes
 
         # Perform the subtraction
-        result = self.x - value
-
-        # Update the Carry flag
-        if result >= 0:
+        if self.x >= value:
             self.set_flag(Flag.CARRY)
         else:
             self.clear_flag(Flag.CARRY)
-
-        # Update the Zero flag
-        if result == 0:
-            self.set_flag(Flag.ZERO)
-        else:
-            self.clear_flag(Flag.ZERO)
-
-        # Update the Negative flag
-        if result & 0x80 != 0:
-            self.set_flag(Flag.NEGATIVE)
-        else:
-            self.clear_flag(Flag.NEGATIVE)
 
     def CPY(self, instruction: Instruction):
         # Compare Memory and Index Y
@@ -507,26 +504,12 @@ class CPU:
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += instruction.no_bytes
-        # Perform the subtraction
-        result = self.y - value
 
-        # Update the Carry flag
-        if result >= 0:
+        # Perform the subtraction
+        if self.y >= value:
             self.set_flag(Flag.CARRY)
         else:
             self.clear_flag(Flag.CARRY)
-
-        # Update the Zero flag
-        if result == 0:
-            self.set_flag(Flag.ZERO)
-        else:
-            self.clear_flag(Flag.ZERO)
-
-        # Update the Negative flag
-        if result & 0x80 != 0:
-            self.set_flag(Flag.NEGATIVE)
-        else:
-            self.clear_flag(Flag.NEGATIVE)
 
     def DEC(self, instruction: Instruction):
         # Decrement Memory by One
@@ -559,6 +542,7 @@ class CPU:
         # Decrement Index X by One
         # X - 1 -> X
 
+        self.memory.get_memory_value(instruction, self)
         # Decrement the value
         self.x -= 1
 
@@ -581,6 +565,7 @@ class CPU:
         # Decrement Index Y by One
         # Y - 1 -> Y
 
+        self.memory.get_memory_value(instruction, self)
         # Decrement the value
         self.y -= 1
 
@@ -653,6 +638,7 @@ class CPU:
         # Increment Index X by One
         # X + 1 -> X
 
+        self.memory.get_memory_value(instruction, self)
         # Increment the value
         self.x += 1
 
@@ -675,6 +661,7 @@ class CPU:
         # Increment Index Y by One
         # Y + 1 -> Y
 
+        self.memory.get_memory_value(instruction, self)
         # Increment the value
         self.y += 1
 
@@ -708,15 +695,14 @@ class CPU:
         # Push (PC + 2), (PC + 1) on stack
         # (PC + 1) -> PCL
         # (PC + 2) -> PCH
-        # Fetch the value from memory based on the addressing mode
-        value, _ = self.memory.get_memory_value(instruction, self)
+        # Fetch the value from memory based on the addressing Mode
+        _, memory_address = self.memory.get_memory_value(instruction, self)
 
         # Push the return address onto the stack
-        self.push_stack(self.program_counter + 2)
-        self.push_stack((self.program_counter + 2) >> 8)
+        self.stack_push_word(self.program_counter + instruction.no_bytes)
 
         # Set the program counter to the address
-        self.program_counter = value
+        self.program_counter = memory_address
 
     def LDA(self, instruction: Instruction):
         # Load Accumulator with Memory
@@ -824,6 +810,7 @@ class CPU:
     def NOP(self, instruction: Instruction):
         # No Operation
         # Increment the program counter
+        self.memory.get_memory_value(instruction, self)
         self.program_counter += instruction.no_bytes
 
     def ORA(self, instruction: Instruction):
@@ -853,8 +840,9 @@ class CPU:
         # Push Accumulator on Stack
         # Push A on stack
 
+        self.memory.get_memory_value(instruction, self)
         # Push the accumulator onto the stack
-        self.push_stack(self.a)
+        self.stack_push(self.a)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -863,8 +851,9 @@ class CPU:
         # Push Processor Status on Stack
         # Push P on stack
 
+        self.memory.get_memory_value(instruction, self)
         # Push the processor status onto the stack
-        self.push_stack(self.flags)
+        self.stack_push(self.status.value)
 
         # Increment the program counter
         self.program_counter += instruction.no_bytes
@@ -873,8 +862,9 @@ class CPU:
         # Pull Accumulator from Stack
         # Pull A from stack
 
+        self.memory.get_memory_value(instruction, self)
         # Pull the accumulator from the stack
-        self.a = self.pull_stack()
+        self.a = self.stack_pop()
 
         # Update the Zero flag
         if self.a == 0:
@@ -895,8 +885,9 @@ class CPU:
         # Pull Processor Status from Stack
         # Pull P from stack
 
+        self.memory.get_memory_value(instruction, self)
         # Pull the processor status from the stack
-        self.flags = self.pull_stack()
+        self.status = Flag(self.stack_pop())
 
         # Increment the program counter
         self.program_counter += 1
@@ -905,6 +896,7 @@ class CPU:
         # Rotate One Bit Left (Memory or Accumulator)
         # C <- [7][6][5][4][3][2][1][0] <- C
         # M <- [6][5][4][3][2][1][0][C]
+
         # Fetch the value from memory based on the addressing mode
         value, memory_address = self.memory.get_memory_value(instruction, self)
 
@@ -940,7 +932,10 @@ class CPU:
             self.clear_flag(Flag.NEGATIVE)
 
         # Write the value back to memory
-        self.memory.set_memory(memory_address, value)
+        if instruction.addressing_mode == AddressingModes.ACCUMULATOR:
+            self.a = value
+        else:
+            self.memory.set_memory(memory_address, value)
 
     def ROR(self, instruction: Instruction):
         # Rotate One Bit Right (Memory or Accumulator)
@@ -980,27 +975,25 @@ class CPU:
             self.clear_flag(Flag.NEGATIVE)
 
         # Write the value back to memory
-        self.memory.set_memory(memory_address, value)
+        if instruction.addressing_mode == AddressingModes.ACCUMULATOR:
+            self.a = value
+        else:
+            self.memory.set_memory(memory_address, value)
 
     def RTI(self, instruction: Instruction):
         # Return from Interrupt
         # Pull P from stack, PC from stack
 
+        self.memory.get_memory_value(instruction, self)
         # Pull the processor status from the stack
-        self.flags = self.pull_stack()
-
-        # Pull the program counter from the stack
-        self.program_counter = self.pull_stack_word()
+        self.status = Flag(self.stack_pop())
 
     def RTS(self, instruction: Instruction):
         # Return from Subroutine
         # Pull PC from stack, PC+1 -> PC
-
+        self.memory.get_memory_value(instruction, self)
         # Pull the program counter from the stack
-        self.program_counter = self.pull_stack_word()
-
-        # Increment the program counter
-        self.program_counter += instruction.no_bytes
+        self.program_counter = self.stack_pop_word()
 
     def SBC(self, instruction: Instruction):
         # Subtract Memory from Accumulator with Borrow
@@ -1044,6 +1037,7 @@ class CPU:
         # Set Carry Flag
         # 1 -> C
 
+        self.memory.get_memory_value(instruction, self)
         # Set the Carry flag
         self.set_flag(Flag.CARRY)
 
@@ -1054,6 +1048,7 @@ class CPU:
         # Set Decimal Flag
         # 1 -> D
 
+        self.memory.get_memory_value(instruction, self)
         # Set the Decimal flag
         self.set_flag(Flag.DECIMAL)
 
@@ -1064,6 +1059,7 @@ class CPU:
         # Set Interrupt Disable Status
         # 1 -> I
 
+        self.memory.get_memory_value(instruction, self)
         # Set the Interrupt flag
         self.set_flag(Flag.INTERRUPT_DISABLE)
 
@@ -1110,6 +1106,7 @@ class CPU:
         # Transfer Accumulator to Index X
         # A -> X
 
+        self.memory.get_memory_value(instruction, self)
         # Copy the accumulator to the X register
         self.x = self.a
 
@@ -1132,6 +1129,7 @@ class CPU:
         # Transfer Accumulator to Index Y
         # A -> Y
 
+        self.memory.get_memory_value(instruction, self)
         # Copy the accumulator to the Y register
         self.y = self.a
 
@@ -1154,6 +1152,7 @@ class CPU:
         # Transfer Stack Pointer to Index X
         # SP -> X
 
+        self.memory.get_memory_value(instruction, self)
         # Copy the stack pointer to the X register
         self.x = self.stack_pointer
 
@@ -1176,6 +1175,7 @@ class CPU:
         # Transfer Index X to Accumulator
         # X -> A
 
+        self.memory.get_memory_value(instruction, self)
         # Copy the X register to the accumulator
         self.a = self.x
 
@@ -1198,6 +1198,7 @@ class CPU:
         # Transfer Index X to Stack Pointer
         # X -> SP
 
+        self.memory.get_memory_value(instruction, self)
         # Copy the X register to the stack pointer
         self.stack_pointer = self.x
 
@@ -1208,6 +1209,7 @@ class CPU:
         # Transfer Index Y to Accumulator
         # Y -> A
 
+        self.memory.get_memory_value(instruction, self)
         # Copy the Y register to the accumulator
         self.a = self.y
 
