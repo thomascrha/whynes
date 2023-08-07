@@ -419,9 +419,8 @@ class CPU:
         # branch on Z = 0
 
         # Fetch the value from memory based on the addressing mode
-
         if self.get_flag(Flag.ZERO) == 0:
-            self.program_counter = value
+            self.program_counter += value
         else:
             self.program_counter += self.instruction.no_bytes
 
@@ -431,7 +430,7 @@ class CPU:
         # Fetch the value from memory based on the addressing mode
 
         if self.get_flag(Flag.NEGATIVE) == 0:
-            self.program_counter = value
+            self.program_counter = +value
         else:
             self.program_counter += self.instruction.no_bytes
 
@@ -527,8 +526,18 @@ class CPU:
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += self.instruction.no_bytes
 
-        # Perform the subtraction
-        if self.a >= value:
+        if self.a == value:
+            self.set_flag(Flag.ZERO)
+        else:
+            self.clear_flag(Flag.ZERO)
+
+        # he N flag is set or reset by the result bit 7
+        if value & 0x80 != 0:
+            self.set_flag(Flag.NEGATIVE)
+        else:
+            self.clear_flag(Flag.NEGATIVE)
+
+        if value <= self.a:
             self.set_flag(Flag.CARRY)
         else:
             self.clear_flag(Flag.CARRY)
