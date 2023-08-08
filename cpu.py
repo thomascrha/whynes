@@ -1,11 +1,8 @@
 import enum
-from types import new_class
-from typing import Optional, Tuple
-from constants import PROGRAM_ROM_START
-from instructions import AddressingModes, Instruction, load_opcodes
+from typing import Optional
+from instructions import AddressingModes, Instruction, Opcodes, load_opcodes
 from logger import get_logger
 from memory import Memory
-from numpy import select
 from utils import get_bytes_ordered
 
 logger = get_logger(__name__)
@@ -35,8 +32,6 @@ class CPU:
     cycles: int
 
     instruction: Instruction
-    assembly: str
-    memory_allocation: str
 
     def __init__(self, memory: Memory, program_rom_offset: int) -> None:
         # registers
@@ -65,9 +60,15 @@ class CPU:
         self.memory = memory
         self.opcodes = load_opcodes(self)
 
-        self.instruction = None
-        self.assembly = None
-        self.memory_allocation = None
+        self.instruction = Instruction(
+            opcode=Opcodes.NOP,
+            run=self.NOP,
+            addressing_mode=AddressingModes.IMPLIED,
+            no_bytes=2,
+            opcode_hex=0x00,
+            cycles=1,
+            cycle_flags=[],
+        )
 
     @property
     def state(self):
@@ -121,7 +122,9 @@ class CPU:
         return (hi << 8) | lo
 
     def get_argument_bytes(self) -> int:
-        argument_bytes = self.memory[self.program_counter + 1 : self.program_counter + self.instruction.no_bytes]
+        argument_bytes = self.memory.get_memory_slice(
+            self.program_counter + 1, self.program_counter + self.instruction.no_bytes
+        )
         # This is honestly ass - at this point I parse the operand - but i need
         # an easy way to refernece this property later (printing/logging) - so i mutate
         # the instruction object and change assembly hex context each time - this
@@ -817,7 +820,7 @@ class CPU:
         # Increment the program counter
         self.program_counter += 1
 
-    def ROL(self, value, memory_address):
+    def ROL(self, value):
         # Rotate One Bit Left (Memory or Accumulator)
         # C <- [7][6][5][4][3][2][1][0] <- C
         # M <- [6][5][4][3][2][1][0][C]

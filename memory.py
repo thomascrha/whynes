@@ -1,9 +1,5 @@
-from typing import List, Optional, Tuple
+from typing import List, Optional
 from cartridge import Cartridge
-
-# from constants import CHARACTER_ROM_END, CHARACTER_ROM_START, PROGRAM_ROM_END, PROGRAM_ROM_START
-from instructions import AddressingModes, Instruction
-from utils import get_bytes_ordered
 
 
 class Memory:
@@ -37,3 +33,6 @@ class Memory:
 
     def set_memory(self, address: int, value: int) -> None:
         self.memory[address] = value
+
+    def get_memory_slice(self, start: int, end: int) -> List[int]:
+        return self.memory[start:end]

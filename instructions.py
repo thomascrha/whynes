@@ -1,6 +1,6 @@
 import enum
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List
 
 # from cpu import CPU
 
@@ -84,12 +84,14 @@ class Instruction:
     def __init__(
         self,
         opcode: Opcodes,
-        opcode_hex: int,
+        opcode_hex: str,
         addressing_mode: AddressingModes,
         no_bytes: int,
         run: Callable,
         cycles: int,
-        cycle_flags: List[Optional[str]],
+        cycle_flags: List[str],
+        assembly: str = "",
+        assembly_hex: str = "",
     ) -> None:
         self.opcode = opcode
         self.opcode_hex = opcode_hex
@@ -97,8 +99,8 @@ class Instruction:
         self.cycles = cycles
         self.cycle_flags = cycle_flags
         self.no_bytes = no_bytes
-        self.assembly = None
-        self.assembly_hex = None
+        self.assembly = assembly
+        self.assembly_hex = assembly_hex
         self.run = run
 
     def __str__(self) -> str:
@@ -146,3 +148,6 @@ def load_opcodes(cpu: "CPU", file_path: Path = Path("./instructions.txt")) -> Di
         _opcodes = {**_opcodes, **parse_opcode_addressing_mode(cpu, opcode[1:], opcode_name)}
 
     return _opcodes
+
+
+from cpu import CPU

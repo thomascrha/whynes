@@ -10,9 +10,10 @@ CHARACTER_ROM_START = 0x0000
 CHARACTER_ROM_END = 0x1FFF
 
 
-def get_bytes_ordered(bytes_: List[bytes]) -> List[bytes]:
+def get_bytes_ordered(bytes_: List[int]) -> int:
     if len(bytes_) == 1:
         return bytes_[0]
+
     elif len(bytes_) == 2:
         a = bytes_[0]
         b = bytes_[1]

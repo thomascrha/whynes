@@ -25,7 +25,7 @@ class ColoredFormatter(logging.Formatter):
     def __init__(self, fmt=None, datefmt=None):
         logging.Formatter.__init__(self, fmt=fmt, datefmt=datefmt)
 
-    def format(self, record: logging.LogRecord) -> logging.Formatter:
+    def format(self, record: logging.LogRecord) -> str:
         colored_record = copy(record)
         levelname = colored_record.levelname
         message = colored_record.msg

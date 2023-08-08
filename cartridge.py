@@ -76,8 +76,8 @@ class Cartridge:
         # Only accept either iNes or NES2.0 type files
         # https://www.nesdev.org/wiki/NES_2.0
 
-        with open(rom_path, "rb") as raw_bytes:
-            raw_bytes = raw_bytes.read()
+        with open(rom_path, "rb") as _raw_bytes:
+            raw_bytes = _raw_bytes.read()
 
         # this is true of ALL the NES rom formats - if this true then the ROM file provided is upto spec
         if not (
