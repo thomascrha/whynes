@@ -32,5 +32,8 @@ class Memory:
     #     self.cartridge = cartridge
     #     self.load_bytes(program_rom=cartridge.program_rom, character_rom=cartridge.character_rom)
 
+    def get_memory(self, address: int) -> int:
+        return self.memory[address]
+
     def set_memory(self, address: int, value: int) -> None:
         self.memory[address] = value
