@@ -145,8 +145,20 @@ class CPU:
             case AddressingModes.IMMEDIATE:
                 return self.get_argument_bytes()
 
-            case AddressingModes.ABSOLUTE:
+            case AddressingModes.ZERO_PAGE:
+                return self.memory.get_memory(self.get_argument_bytes())
+
+            case AddressingModes.X_INDEXED_ZERO_PAGE:
+                return self.memory.get_memory(self.get_argument_bytes() + self.x)
+
+            case AddressingModes.Y_INDEXED_ZERO_PAGE:
+                return self.memory.get_memory(self.get_argument_bytes() + self.y)
+
+            case AddressingModes.RELATIVE:
                 return self.get_argument_bytes()
+
+            case AddressingModes.ABSOLUTE:
+                return self.memory.get_memory(self.get_argument_bytes())
 
             case AddressingModes.X_INDEXED_ABSOLUTE:
                 return self.memory.get_memory(self.get_argument_bytes() + self.x)
@@ -157,23 +169,11 @@ class CPU:
             case AddressingModes.ABSOLUTE_INDIRECT:
                 return self.memory.get_memory(self.memory.get_memory(self.get_argument_bytes()))
 
-            case AddressingModes.ZERO_PAGE:
-                return self.memory.get_memory(self.get_argument_bytes())
-
-            case AddressingModes.X_INDEXED_ZERO_PAGE:
-                return self.memory.get_memory(self.get_argument_bytes() + self.x)
-
-            case AddressingModes.Y_INDEXED_ZERO_PAGE:
-                return self.memory.get_memory(self.get_argument_bytes() + self.y)
-
             case AddressingModes.X_INDEXED_ZERO_PAGE_INDIRECT:
                 return self.memory.get_memory(self.memory.get_memory(self.get_argument_bytes() + self.x))
 
             case AddressingModes.ZERO_PAGE_INDIRECT_Y_INDEXED:
                 return self.memory.get_memory(self.memory.get_memory(self.get_argument_bytes() + self.y))
-
-            case AddressingModes.RELATIVE:
-                return self.get_argument_bytes()
 
             case _:
                 raise SystemError
