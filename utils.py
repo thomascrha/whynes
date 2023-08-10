@@ -10,15 +10,15 @@ CHARACTER_ROM_START = 0x0000
 CHARACTER_ROM_END = 0x1FFF
 
 
-def get_bytes_ordered(bytes_: List[int]) -> int:
+def endianify(bytes_: List[int]) -> int:
     if len(bytes_) == 1:
         return bytes_[0]
 
     elif len(bytes_) == 2:
-        a = bytes_[0]
-        b = bytes_[1]
-        b = b << 8
-        return b | a
+        lo = bytes_[0]
+        hi = bytes_[1]
+        hi = hi << 8
+        return hi | lo
     else:
         # no command should have more than 2 bytes for a 6502 processor
         raise ValueError("Unsupported number of bytes")

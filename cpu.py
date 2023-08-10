@@ -3,7 +3,7 @@ from typing import Optional
 from instructions import AddressingModes, Instruction, Opcodes, load_opcodes
 from logger import get_logger
 from memory import Memory
-from utils import get_bytes_ordered
+from utils import endianify
 
 logger = get_logger(__name__)
 
@@ -121,95 +121,74 @@ class CPU:
         hi = self.stack_pop()
         return (hi << 8) | lo
 
-    def get_argument_bytes(self) -> int:
+    def get_operand(self) -> int:
         argument_bytes = self.memory.get_memory_slice(
             self.program_counter + 1, self.program_counter + self.instruction.no_bytes
         )
+        self.instruction.assembly_hex = f"{self.instruction.opcode_hex}"
         # This is honestly ass - at this point I parse the operand - but i need
         # an easy way to refernece this property later (printing/logging) - so i mutate
         # the instruction object and change assembly hex context each time - this
         # isn't used for functionality but rather giving me better debug messages.
-        self.instruction.assembly_hex = (
-            f"{self.instruction.opcode_hex} {' '.join([hex(x).split('x')[1:][0].zfill(2) for x in argument_bytes])}"
-        )
+        if self.instruction.addressing_mode not in (AddressingModes.IMPLIED, AddressingModes.ACCUMULATOR):
+            self.instruction.assembly_hex += f" {' '.join([hex(x).split('x')[1:][0].zfill(2) for x in argument_bytes])}"
 
-        return get_bytes_ordered(argument_bytes)
+        return endianify(argument_bytes)
 
-    def get_memory_value(self) -> Optional[int]:
+    def read_word(self, address: int, *, wrap_at_page: bool = False) -> int:
+        lo = self.memory.get_memory(address)
+        hi = self.memory.get_memory(address + 1)
+        if wrap_at_page and (address & 0xFF) == 0xFF:
+            # will wrap at page boundary
+            hi = self.memory.get_memory(address & 0xFF00)  # read the second (hi) byte from the start of the page
+
+        return lo + (hi << 8)
+
+    def process_addressing_mode(self) -> Optional[int]:
+        operand = self.get_operand()
         match (self.instruction.addressing_mode):
             case AddressingModes.IMPLIED:
-                self.instruction.assembly_hex = f"{self.instruction.opcode_hex}"
                 return None
 
             case AddressingModes.ACCUMULATOR:
-                self.instruction.assembly_hex = f"{self.instruction.opcode_hex}"
                 return self.a
 
-            case AddressingModes.IMMEDIATE:
-                return self.get_argument_bytes()
-
-            case AddressingModes.ZERO_PAGE:
-                return self.get_argument_bytes()
+            case AddressingModes.IMMEDIATE | AddressingModes.ZERO_PAGE | AddressingModes.RELATIVE | AddressingModes.ABSOLUTE:
+                return operand
 
             case AddressingModes.X_INDEXED_ZERO_PAGE:
-                address = self.get_argument_bytes() + self.x
-                if address > 0xFF:
-                    address = address - 0xFF
-                return address
+                return (operand + self.x) & 0xFF  # wrap around
 
             case AddressingModes.Y_INDEXED_ZERO_PAGE:
-                address = self.get_argument_bytes() + self.y
-                if address > 0xFF:
-                    address = address - 0xFF
-                return address
-
-            case AddressingModes.RELATIVE:
-                return self.get_argument_bytes()
-
-            case AddressingModes.ABSOLUTE:
-                return self.get_argument_bytes()
+                return (operand + self.y) & 0xFF  # wrap around
 
             case AddressingModes.X_INDEXED_ABSOLUTE:
-                address = self.get_argument_bytes() + self.x
-                if address > 0xFFFF:
-                    address = address - 0xFFFF
-                return address
+                return (operand + self.x) & 0xFFFF  # wrap around
 
             case AddressingModes.Y_INDEXED_ABSOLUTE:
-                address = self.get_argument_bytes() + self.y
-                if address > 0xFFFF:
-                    address = address - 0xFFFF
-                return address
+                return (operand + self.y) & 0xFFFF  # wrap around
 
             case AddressingModes.ABSOLUTE_INDIRECT:
-                return self.memory.get_memory(self.get_argument_bytes())
+                return self.read_word(operand, wrap_at_page=True)
 
             case AddressingModes.X_INDEXED_ZERO_PAGE_INDIRECT:
-                address = self.get_argument_bytes() + self.x
-                if address > 0xFFFF:
-                    address = address - 0xFFFF
-
-                lo = self.memory.get_memory(address)
-                hi = self.memory.get_memory(address + 1)
-                return (hi << 8) | lo
+                address = (operand + self.x) & 0xFF  # wrap around
+                return self.read_word(address, wrap_at_page=True)
 
             case AddressingModes.ZERO_PAGE_INDIRECT_Y_INDEXED:
-                address = self.get_argument_bytes()
-                lo = self.memory.get_memory(address)
-                hi = self.memory.get_memory(address + 1)
-                return (hi << 8) | lo + self.y
+                return (self.read_word(operand, wrap_at_page=True) + self.y) & 0xFFFF  # wrap around
 
             case _:
                 raise SystemError
 
-    def step(self):
+    def step(self) -> None:
         opcode_hex = self.memory[self.program_counter]
         self.instruction = self.opcodes[opcode_hex]
 
         if not hasattr(self, self.instruction.opcode.value.upper()):
             raise SystemError
 
-        instruction_args = self.get_memory_value()
+        instruction_args = self.process_addressing_mode()
 
         logger.debug(self.instruction)
         logger.debug(self)
@@ -581,6 +560,7 @@ class CPU:
         # Increment program counter by size of operation (opcode + operand)
         if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
             value = self.memory.get_memory(value)
+
         self.program_counter += self.instruction.no_bytes
         # Perform the XOR operation
         self.a ^= value
