@@ -88,7 +88,7 @@ class SnakeGame:
         while self.running:
             self.cpu.step()
             # read in user inputs and set the appropriate memory locations
-            if self.last_key_pressed is not None and self.last_key_pressed != self.memory[0xFE]:
+            if self.last_key_pressed is not None and self.last_key_pressed != self.memory[0xFF]:
                 self.memory[0xFF] = self.last_key_pressed
 
             self.memory[0xFE] = random.randint(0, 0xFF)
@@ -136,3 +136,4 @@ class SnakeGame:
 
 
 SnakeGame(display=False, keyboard=False)
+# SnakeGame()

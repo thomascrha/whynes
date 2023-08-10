@@ -149,34 +149,55 @@ class CPU:
                 return self.get_argument_bytes()
 
             case AddressingModes.ZERO_PAGE:
-                return self.memory.get_memory(self.get_argument_bytes())
+                return self.get_argument_bytes()
 
             case AddressingModes.X_INDEXED_ZERO_PAGE:
-                return self.memory.get_memory(self.get_argument_bytes() + self.x)
+                address = self.get_argument_bytes() + self.x
+                if address > 0xFF:
+                    address = address - 0xFF
+                return address
 
             case AddressingModes.Y_INDEXED_ZERO_PAGE:
-                return self.memory.get_memory(self.get_argument_bytes() + self.y)
+                address = self.get_argument_bytes() + self.y
+                if address > 0xFF:
+                    address = address - 0xFF
+                return address
 
             case AddressingModes.RELATIVE:
                 return self.get_argument_bytes()
 
             case AddressingModes.ABSOLUTE:
-                return self.memory.get_memory(self.get_argument_bytes())
+                return self.get_argument_bytes()
 
             case AddressingModes.X_INDEXED_ABSOLUTE:
-                return self.memory.get_memory(self.get_argument_bytes() + self.x)
+                address = self.get_argument_bytes() + self.x
+                if address > 0xFFFF:
+                    address = address - 0xFFFF
+                return address
 
             case AddressingModes.Y_INDEXED_ABSOLUTE:
-                return self.memory.get_memory(self.get_argument_bytes() + self.y)
+                address = self.get_argument_bytes() + self.y
+                if address > 0xFFFF:
+                    address = address - 0xFFFF
+                return address
 
             case AddressingModes.ABSOLUTE_INDIRECT:
-                return self.memory.get_memory(self.memory.get_memory(self.get_argument_bytes()))
+                return self.memory.get_memory(self.get_argument_bytes())
 
             case AddressingModes.X_INDEXED_ZERO_PAGE_INDIRECT:
-                return self.memory.get_memory(self.memory.get_memory(self.get_argument_bytes() + self.x))
+                address = self.get_argument_bytes() + self.x
+                if address > 0xFFFF:
+                    address = address - 0xFFFF
+
+                lo = self.memory.get_memory(address)
+                hi = self.memory.get_memory(address + 1)
+                return (hi << 8) | lo
 
             case AddressingModes.ZERO_PAGE_INDIRECT_Y_INDEXED:
-                return self.memory.get_memory(self.memory.get_memory(self.get_argument_bytes() + self.y))
+                address = self.get_argument_bytes()
+                lo = self.memory.get_memory(address)
+                hi = self.memory.get_memory(address + 1)
+                return (hi << 8) | lo + self.y
 
             case _:
                 raise SystemError
@@ -205,8 +226,8 @@ class CPU:
         # Add Memory to Accumulator with Carry
         # A + M + C -> A, C
 
-        # Increment program counter by size of operation (opcode + operand)
-        self.program_counter += self.instruction.no_bytes
+        if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
+            value = self.memory.get_memory(value)
 
         # Perform the addition
         sum_value = self.a + value + self.get_flag(Flag.CARRY)
@@ -239,10 +260,14 @@ class CPU:
         # Store the result in the accumulator
         self.a = sum_value & 0xFF  # Keep it 8-bit
 
+        # Increment program counter by size of operation (opcode + operand)
+        self.program_counter += self.instruction.no_bytes
+
     def AND(self, value):
         # AND Memory with Accumulator
         # A AND M -> A
 
+        value = self.memory.get_memory(value)
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += self.instruction.no_bytes
 
@@ -264,6 +289,9 @@ class CPU:
     def ASL(self, value):
         # Arithmetic Shift Left
         # C <- [76543210] <- 0
+
+        if self.instruction.addressing_mode != AddressingModes.ACCUMULATOR:
+            value = self.memory.get_memory(value)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += self.instruction.no_bytes
@@ -316,6 +344,8 @@ class CPU:
     def BIT(self, value):
         # Test Bits in Memory with Accumulator
         # A AND M, M7 -> N, M6 -> V
+
+        value = self.memory.get_memory(value)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += self.instruction.no_bytes
@@ -430,6 +460,8 @@ class CPU:
     def CMP(self, value):
         # Compare Memory and Accumulator
         # A - M
+        if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
+            value = self.memory.get_memory(value)
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += self.instruction.no_bytes
 
@@ -452,6 +484,8 @@ class CPU:
     def CPX(self, value):
         # Compare Memory and Index X
         # X - M
+        if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
+            value = self.memory.get_memory(value)
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += self.instruction.no_bytes
 
@@ -464,6 +498,8 @@ class CPU:
     def CPY(self, value):
         # Compare Memory and Index Y
         # Y - M
+        if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
+            value = self.memory.get_memory(value)
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += self.instruction.no_bytes
 
@@ -476,6 +512,7 @@ class CPU:
     def DEC(self, value):
         # Decrement Memory by One
         # M - 1 -> M
+        value = self.memory.get_memory(value)
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += self.instruction.no_bytes
 
@@ -542,6 +579,8 @@ class CPU:
         # Exclusive-OR Memory with Accumulator
         # A EOR M -> A
         # Increment program counter by size of operation (opcode + operand)
+        if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
+            value = self.memory.get_memory(value)
         self.program_counter += self.instruction.no_bytes
         # Perform the XOR operation
         self.a ^= value
@@ -561,6 +600,7 @@ class CPU:
     def INC(self, value):
         # Increment Memory by One
         # M + 1 -> M
+        value = self.memory.get_memory(value)
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += self.instruction.no_bytes
 
@@ -650,6 +690,9 @@ class CPU:
         # M -> A
         # Fetch the value from memory based on the addressing mode
 
+        if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
+            value = self.memory.get_memory(value)
+
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += self.instruction.no_bytes
         # Load the value into the accumulator
@@ -671,6 +714,9 @@ class CPU:
         # Load Index X with Memory
         # M -> X
         # Fetch the value from memory based on the addressing mode
+
+        if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
+            value = self.memory.get_memory(value)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += self.instruction.no_bytes
@@ -694,6 +740,8 @@ class CPU:
         # Load Index Y with Memory
         # M -> Y
         # Fetch the value from memory based on the addressing mode
+        if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
+            value = self.memory.get_memory(value)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += self.instruction.no_bytes
@@ -717,6 +765,9 @@ class CPU:
         # 0 -> [7][6][5][4][3][2][1][0] -> C
         # M/2 -> [7][6][5][4][3][2][1][0]
         # Fetch the value from memory based on the addressing mode
+
+        if self.instruction.addressing_mode != AddressingModes.ACCUMULATOR:
+            value = self.memory.get_memory(value)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += self.instruction.no_bytes
@@ -750,7 +801,8 @@ class CPU:
         # OR Memory with Accumulator
         # A OR M -> A
         # Fetch the value from memory based on the addressing mode
-
+        if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
+            value = self.memory.get_memory(value)
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += self.instruction.no_bytes
         # Perform the OR operation
@@ -824,6 +876,8 @@ class CPU:
         # Rotate One Bit Left (Memory or Accumulator)
         # C <- [7][6][5][4][3][2][1][0] <- C
         # M <- [6][5][4][3][2][1][0][C]
+        if self.instruction.addressing_mode != AddressingModes.ACCUMULATOR:
+            value = self.memory.get_memory(value)
 
         # Fetch the value from memory based on the addressing mode
 
@@ -858,11 +912,13 @@ class CPU:
         else:
             self.clear_flag(Flag.NEGATIVE)
 
-    def ROR(self, value, memory_address):
+    def ROR(self, value):
         # Rotate One Bit Right (Memory or Accumulator)
         # C -> [7][6][5][4][3][2][1][0] -> C
         # M -> [C][7][6][5][4][3][2][1]
         # Fetch the value from memory based on the addressing mode
+        if self.instruction.addressing_mode != AddressingModes.ACCUMULATOR:
+            value = self.memory.get_memory(value)
 
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += self.instruction.no_bytes
@@ -911,6 +967,8 @@ class CPU:
     def SBC(self, value):
         # Subtract Memory from Accumulator with Borrow
         # A - M - C -> A
+        if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
+            value = self.memory.get_memory(value)
         # Increment program counter by size of operation (opcode + operand)
         self.program_counter += self.instruction.no_bytes
         # Perform the subtraction

@@ -148,6 +148,3 @@ def load_opcodes(cpu: "CPU", file_path: Path = Path("./instructions.txt")) -> Di
         _opcodes = {**_opcodes, **parse_opcode_addressing_mode(cpu, opcode[1:], opcode_name)}
 
     return _opcodes
-
-
-from cpu import CPU
