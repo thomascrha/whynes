@@ -11,6 +11,7 @@ class Memory:
         self.address_space = address_space
         self.memory = [0] * self.address_space
         self.cartridge = None
+        self.program_rom_offset = 0x0600
 
     def __getitem__(self, key: int) -> int:
         return self.memory[key]
