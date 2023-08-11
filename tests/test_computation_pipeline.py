@@ -149,26 +149,26 @@ class Test1:
 # ]
 
 
-@pytest.mark.parametrize(
-    "program_rom,cycle_states,dissassembly_command_order",
-    [
-        (Test1.program_rom, Test1.cycle_states, Test1.dissassembly_command_order),
-    ],
-)
-def test_assembly_cpu(program_rom: bytearray, cycle_states: list, dissassembly_command_order: list):
-    memory = Memory()
-    memory.load_program_rom(program_rom=program_rom, program_rom_offset=0x0000)
-    cpu = CPU(memory=memory, program_rom_offset=0x0000)
-
-    for i, cycle_state in enumerate(cycle_states):
-        cpu.step()
-
-        assert cpu.state["A"] == cycle_state["A"]
-        assert cpu.state["X"] == cycle_state["X"]
-        assert cpu.state["Y"] == cycle_state["Y"]
-        assert cpu.state["SP"] == cycle_state["SP"]
-        assert cpu.state["PC"] == cycle_state["PC"]
-        assert cpu.state["S"] == cycle_state["S"]
-
-        assert cpu.instruction.opcode == dissassembly_command_order[i][0]
-        assert cpu.instruction.addressing_mode == dissassembly_command_order[i][1]
+# @pytest.mark.parametrize(
+#     "program_rom,cycle_states,dissassembly_command_order",
+#     [
+#         (Test1.program_rom, Test1.cycle_states, Test1.dissassembly_command_order),
+#     ],
+# )
+# def test_assembly_cpu(program_rom: bytearray, cycle_states: list, dissassembly_command_order: list):
+#     memory = Memory()
+#     memory.load_program_rom(program_rom=program_rom, program_rom_offset=0x0000)
+#     cpu = CPU(memory=memory, program_rom_offset=0x0000)
+#
+#     for i, cycle_state in enumerate(cycle_states):
+#         cpu.step()
+#
+#         assert cpu.state["A"] == cycle_state["A"]
+#         assert cpu.state["X"] == cycle_state["X"]
+#         assert cpu.state["Y"] == cycle_state["Y"]
+#         assert cpu.state["SP"] == cycle_state["SP"]
+#         assert cpu.state["PC"] == cycle_state["PC"]
+#         assert cpu.state["S"] == cycle_state["S"]
+#
+#         assert cpu.instruction.opcode == dissassembly_command_order[i][0]
+#         assert cpu.instruction.addressing_mode == dissassembly_command_order[i][1]

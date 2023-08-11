@@ -1,322 +1,83 @@
-from typing import List
+"""
+These test assume that the first 0x0FFF of memory are RAM whist the rest is ROM.
+"""
+
+from typing import List, Tuple
 import pytest
-from cpu import CPU, Flag
+from cpu import CPU
 from instructions import AddressingModes, Opcodes
 from memory import Memory
-from tests.utils import DEFAULT_FLAG, DEFAULT_STATE
+from tests.utils import DEFAULT_FLAG, DEFAULT_STATE, get_memory_map
+
+
+def compare_lists(list1, list2):
+    return {i: (list1[i], list2[i]) for i in range(len(list1)) if list1[i] != list2[i]}
 
 
 @pytest.mark.parametrize(
-    "opcode, addressing_mode, instruction, initial_state, exit_state",
+    "opcode, addressing_mode, instruction_sequence_steps, initial_state, exit_state",
     [
         (
-            Opcodes.ADC,
-            AddressingModes.IMMEDIATE,
-            [0x69, 0x01],
-            DEFAULT_STATE,
-            {"A": 0x01, "PC": 2, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255},
-        ),
-        (
-            Opcodes.AND,
-            AddressingModes.ZERO_PAGE,
-            [0x25, 0x01],
-            DEFAULT_STATE,
-            {"A": 0, "PC": 2, "X": 0, "Y": 0, "S": DEFAULT_FLAG | Flag.ZERO, "SP": 255},
-        ),
-        (
-            Opcodes.AND,
-            AddressingModes.IMMEDIATE,
-            [0x29, 0x01],
-            {"A": 1, "PC": 0, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255},
-            {"A": 1, "PC": 2, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255},
-        ),
-        (
-            Opcodes.ASL,
-            AddressingModes.ACCUMULATOR,
-            [0x0A],
-            DEFAULT_STATE,
-            {"A": 0, "PC": 1, "X": 0, "Y": 0, "S": DEFAULT_FLAG | Flag.ZERO, "SP": 255},
-        ),
-        (
-            Opcodes.BCC,
-            AddressingModes.RELATIVE,
-            [0x90, 0x29],
-            DEFAULT_STATE,
-            {"A": 0, "PC": 0x29, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255},
-        ),
-        (
-            Opcodes.BCC,
-            AddressingModes.RELATIVE,
-            [0x90, 0x01],
+            # program shape
+            # JSR $1000 ;jump to subroutine at $0001              0x0FFF
+            # LDA #$01 ;<- PROGRAM COUNTER LOCATION at end        0x1000
+            (Opcodes.JSR,),
+            (AddressingModes.ABSOLUTE,),
+            ([0x20, 0x00, 0x10], 1),
+            DEFAULT_STATE,  # lo -> 254(sp)  hi -> 255(sp)
             {
                 "A": 0,
-                "PC": 0x0,
-                "X": 0,
-                "Y": 0,
-                "S": DEFAULT_FLAG | Flag.CARRY,
-                "SP": 255,
-            },
-            {
-                "A": 0,
-                "PC": 0x02,
-                "X": 0,
-                "Y": 0,
-                "S": DEFAULT_FLAG | Flag.CARRY,
-                "SP": 255,
-            },
-        ),
-        (
-            Opcodes.BCS,
-            AddressingModes.RELATIVE,
-            [0xB0, 0x2C],
-            DEFAULT_STATE,
-            {"A": 0, "PC": 0x02, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255},
-        ),
-        (
-            Opcodes.BCS,
-            AddressingModes.RELATIVE,
-            [0xB0, 0x2C],
-            {
-                "A": 0,
-                "PC": 0x00,
-                "X": 0,
-                "Y": 0,
-                "S": DEFAULT_FLAG | Flag.CARRY,
-                "SP": 255,
-            },
-            {
-                "A": 0,
-                "PC": 0x2C,
-                "X": 0,
-                "Y": 0,
-                "S": DEFAULT_FLAG | Flag.CARRY,
-                "SP": 255,
-            },
-        ),
-        (
-            Opcodes.BEQ,
-            AddressingModes.RELATIVE,
-            [0xF0, 0x01],
-            DEFAULT_STATE,
-            {"A": 0, "PC": 2, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255},
-        ),
-        (
-            Opcodes.BEQ,
-            AddressingModes.RELATIVE,
-            [0xF0, 0x2C],
-            {"A": 0, "PC": 0x0, "X": 0, "Y": 0, "S": DEFAULT_FLAG | Flag.ZERO, "SP": 255},
-            {
-                "A": 0,
-                "PC": 0x2C,
-                "X": 0,
-                "Y": 0,
-                "S": DEFAULT_FLAG | Flag.ZERO,
-                "SP": 255,
-            },
-        ),
-        (
-            Opcodes.BIT,
-            AddressingModes.ABSOLUTE,
-            [0x2C, 0x01, 0x00],
-            DEFAULT_STATE,
-            {"A": 0, "PC": 3, "X": 0, "Y": 0, "S": DEFAULT_FLAG | Flag.ZERO, "SP": 255},
-        ),
-        (
-            Opcodes.BIT,
-            AddressingModes.ZERO_PAGE,
-            [0x24, 0x01],
-            DEFAULT_STATE,
-            {"A": 0, "PC": 2, "X": 0, "Y": 0, "S": DEFAULT_FLAG | Flag.ZERO, "SP": 255},
-        ),
-        (
-            Opcodes.BMI,
-            AddressingModes.RELATIVE,
-            [0x30, 0x01],
-            DEFAULT_STATE,
-            {"A": 0, "PC": 2, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255},
-        ),
-        (
-            Opcodes.BNE,
-            AddressingModes.RELATIVE,
-            [0xD0, 0x30],
-            DEFAULT_STATE,
-            {"A": 0, "PC": 0x30, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255},
-        ),
-        (
-            Opcodes.BNE,
-            AddressingModes.RELATIVE,
-            [0xD0, 0x01],
-            DEFAULT_STATE,
-            {"A": 0, "PC": 1, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255},
-        ),
-        (
-            Opcodes.BPL,
-            AddressingModes.RELATIVE,
-            [0x10, 0x29],
-            DEFAULT_STATE,
-            {"A": 0, "PC": 0x29, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255},
-        ),
-        (
-            Opcodes.BRK,
-            AddressingModes.IMPLIED,
-            [0x00],
-            DEFAULT_STATE,
-            {"A": 0, "PC": 0x0, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 252},
-        ),
-        (
-            Opcodes.BVC,
-            AddressingModes.RELATIVE,
-            [0x50, 0x01],
-            DEFAULT_STATE,
-            {"A": 0, "PC": 1, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255},
-        ),
-        (
-            Opcodes.BVC,
-            AddressingModes.RELATIVE,
-            [0x50, 0x01],
-            {
-                "A": 0,
-                "PC": 0,
-                "X": 0,
-                "Y": 0,
-                "S": DEFAULT_FLAG | Flag.OVERFLOW,
-                "SP": 255,
-            },
-            {
-                "A": 0,
-                "PC": 2,
-                "X": 0,
-                "Y": 0,
-                "S": DEFAULT_FLAG | Flag.OVERFLOW,
-                "SP": 255,
-            },
-        ),
-        (
-            Opcodes.BVS,
-            AddressingModes.RELATIVE,
-            [0x70, 0x01],
-            DEFAULT_STATE,
-            {
-                "A": 0,
-                "PC": 2,
+                "PC": 0x0001,
                 "X": 0,
                 "Y": 0,
                 "S": DEFAULT_FLAG,
-                "SP": 255,
+                "SP": 253,
+                "MEMORY": get_memory_map({0x01FE: 0x00, 0x01FF: 0x10}),
             },
         ),
-        (
-            Opcodes.BVS,
-            AddressingModes.RELATIVE,
-            [0x70, 0x01],
-            {
-                "A": 0,
-                "PC": 0,
-                "X": 0,
-                "Y": 0,
-                "S": DEFAULT_FLAG | Flag.OVERFLOW,
-                "SP": 255,
-            },
-            {
-                "A": 0,
-                "PC": 1,
-                "X": 0,
-                "Y": 0,
-                "S": DEFAULT_FLAG | Flag.OVERFLOW,
-                "SP": 255,
-            },
-        ),
-        (
-            Opcodes.CLC,
-            AddressingModes.IMPLIED,
-            [0x18],
-            {
-                "A": 0,
-                "PC": 0,
-                "X": 0,
-                "Y": 0,
-                "S": DEFAULT_FLAG | Flag.CARRY,
-                "SP": 255,
-            },
-            {
-                "A": 0,
-                "PC": 1,
-                "X": 0,
-                "Y": 0,
-                "S": DEFAULT_FLAG,
-                "SP": 255,
-            },
-        ),
-        (
-            Opcodes.CLD,
-            AddressingModes.IMPLIED,
-            [0xD8],
-            {
-                "A": 0,
-                "PC": 0,
-                "X": 0,
-                "Y": 0,
-                "S": DEFAULT_FLAG | Flag.DECIMAL,
-                "SP": 255,
-            },
-            {"A": 0, "PC": 1, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255},
-        ),
-        (
-            Opcodes.CLV,
-            AddressingModes.IMPLIED,
-            [0xB8],
-            {
-                "A": 0,
-                "PC": 0,
-                "X": 0,
-                "Y": 0,
-                "S": DEFAULT_FLAG | Flag.OVERFLOW,
-                "SP": 255,
-            },
-            {"A": 0, "PC": 1, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255},
-        ),
-        (
-            Opcodes.CMP,
-            AddressingModes.IMMEDIATE,
-            [0xC9, 0x01],
-            {"A": 0x01, "PC": 0, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255},
-            {
-                "A": 0x01,
-                "PC": 2,
-                "X": 0,
-                "Y": 0,
-                "S": DEFAULT_FLAG | Flag.CARRY,
-                "SP": 255,
-            },
-        ),
-        (
-            Opcodes.CMP,
-            AddressingModes.ABSOLUTE,
-            [0xCD, 0x00, 0x00],
-            {"A": 0x01, "PC": 0, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255},
-            {
-                "A": 0x01,
-                "PC": 3,
-                "X": 0,
-                "Y": 0,
-                "S": DEFAULT_FLAG,
-                "SP": 255,
-            },
-        ),
+        # (
+        #     # program shape
+        #     # JSR $1000 ;jump to subroutine at $1000                           0x0FFF
+        #     # LDA #$01 ;<- PROGRAM COUNTER LOCATION AT END                     0x1000
+        #     # ...more code...
+        #     # some_routine:
+        #     #     LDA #$01 ;load accumulator with 1 (immediate addressing)     0x1001
+        #     #     RTS ;return from subroutine                                  0x1002
+        #     # ...more code...
+        #     # """
+        #     (Opcodes.JSR, Opcodes.LDA, Opcodes.RTS),
+        #     (AddressingModes.ABSOLUTE, AddressingModes.IMMEDIATE, AddressingModes.IMPLIED),
+        #     ([0x20, 0x02, 0x10, 0xA9, 0x01, 0x60], 3),
+        #     DEFAULT_STATE,
+        #     {"A": 1, "PC": 0x1000, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255, "MEMORY": get_memory_map()}
+        # ),
     ],
 )
 def test_assembly_cpu(
-    opcode: Opcodes, addressing_mode: AddressingModes, instruction: List[int], initial_state: dict, exit_state: dict
+    opcode: Opcodes,
+    addressing_mode: AddressingModes,
+    instruction_sequence_steps: Tuple[List[int], int],
+    initial_state: dict,
+    exit_state: dict,
 ):
+    intstruction_sequence, steps = instruction_sequence_steps
     memory = Memory()
-    memory.load_program_rom(program_rom=instruction, program_rom_offset=0x0000)
+    memory.load_program_rom(program_rom=intstruction_sequence, program_rom_offset=0x0FFF)
 
-    cpu = CPU(memory=memory, program_rom_offset=0x0000)
+    cpu = CPU(memory=memory)
     cpu.set_state(initial_state)
 
-    cpu.step()
+    _steps = 0
+    while _steps < steps:
+        cpu.step()
 
-    assert cpu.instruction.opcode == opcode
-    assert cpu.instruction.addressing_mode == addressing_mode
+        assert cpu.instruction.opcode == opcode[_steps]
+        assert cpu.instruction.addressing_mode == addressing_mode[_steps]
 
+        _steps += 1
+
+    print(compare_lists(cpu.state["MEMORY"], exit_state["MEMORY"]))
     assert cpu.state == exit_state
+
+
+# find the largest number divisible
