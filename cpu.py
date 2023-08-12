@@ -1,7 +1,6 @@
-from copy import copy
 import enum
+from copy import copy
 from typing import Optional
-
 from instructions import AddressingModes, Instruction, Opcodes, load_opcodes
 from logger import get_logger
 from memory import Memory
@@ -72,7 +71,7 @@ class CPU:
             "SP": self.stack_pointer,
             "PC": self.program_counter,
             "S": self.status,
-            "MEMORY": self.memory.memory[:self.program_rom_offset - len(self.memory.memory)],
+            "MEMORY": self.memory.memory[: self.program_rom_offset - len(self.memory.memory)],
         }
 
     def set_state(self, state: dict):
@@ -953,5 +952,3 @@ class CPU:
             self.set_flag(Flag.NEGATIVE)
         else:
             self.clear_flag(Flag.NEGATIVE)
-
-
