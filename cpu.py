@@ -71,7 +71,7 @@ class CPU:
             "SP": self.stack_pointer,
             "PC": self.program_counter,
             "S": self.status,
-            "MEMORY": self.memory.memory[: self.program_rom_offset - len(self.memory.memory)],
+            "MEMORY": self.memory.memory[: self.program_rom_offset],
         }
 
     def set_state(self, state: dict):
