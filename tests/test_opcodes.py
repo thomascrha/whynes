@@ -27,7 +27,7 @@ def compare_lists(list1, list2):
             DEFAULT_STATE,  # lo -> 254(sp)  hi -> 255(sp)
             {
                 "A": 0,
-                "PC": 0x0001,
+                "PC": 0x1000,
                 "X": 0,
                 "Y": 0,
                 "S": DEFAULT_FLAG,
