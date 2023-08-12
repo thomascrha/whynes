@@ -565,7 +565,7 @@ class CPU:
         # (PC + 1) -> PCL
         # (PC + 2) -> PCH
         # Push the return address onto the stack
-        self.stack_push_word(self.program_counter + self.instruction.no_bytes)
+        self.stack_push_word(self.program_counter)
 
         # Set the program counter to the address
         self.program_counter = value
