@@ -19,8 +19,8 @@ def compare_lists(list1, list2):
     [
         (
             # program shape
-            # JSR $1000 ;jump to subroutine at $0001              0x0FFF
-            # LDA #$01 ;<- PROGRAM COUNTER LOCATION at end        0x1000
+            # JSR $1000 ;jump to subroutine at $1000              0x0FFF
+            # push next instruction to stack i.e. 0x1000
             (Opcodes.JSR,),
             (AddressingModes.ABSOLUTE,),
             ([0x20, 0x00, 0x10], 1),
