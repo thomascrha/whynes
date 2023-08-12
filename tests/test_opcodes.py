@@ -61,8 +61,8 @@ def test_assembly_cpu(
     exit_state: dict,
 ):
     intstruction_sequence, steps = instruction_sequence_steps
-    memory = Memory()
-    memory.load_program_rom(program_rom=intstruction_sequence, program_rom_offset=0x0FFF)
+    memory = Memory(program_rom_offset=0x0FFF)
+    memory.load_program_rom(program_rom=intstruction_sequence)
 
     cpu = CPU(memory=memory)
     cpu.set_state(initial_state)

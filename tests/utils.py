@@ -2,7 +2,7 @@ from typing import Dict, List
 from cpu import Flag
 
 
-def get_memory_map(changed_values: Dict[int, int] = {}, memory_end: int = 0x0FFF) -> List[int]:
+def get_memory_map(changed_values: Dict[int, int] = {}, memory_end: int = 0xFFF) -> List[int]:
     memory = [0] * memory_end
     for address, value in changed_values.items():
         memory[address] = value
