@@ -32,25 +32,33 @@ def compare_lists(list1, list2):
                 "Y": 0,
                 "S": DEFAULT_FLAG,
                 "SP": 253,
-                "MEMORY": get_memory_map({0x01FE: 0x00, 0x01FF: 0x10}),
+                "MEMORY": get_memory_map({0x01FE: 0x02, 0x01FF: 0x10}),
             },
         ),
-        # (
-        #     # program shape
-        #     # JSR $1000 ;jump to subroutine at $1000                           0x0FFF
-        #     # LDA #$01 ;<- PROGRAM COUNTER LOCATION AT END                     0x1000
-        #     # ...more code...
-        #     # some_routine:
-        #     #     LDA #$01 ;load accumulator with 1 (immediate addressing)     0x1001
-        #     #     RTS ;return from subroutine                                  0x1002
-        #     # ...more code...
-        #     # """
-        #     (Opcodes.JSR, Opcodes.LDA, Opcodes.RTS),
-        #     (AddressingModes.ABSOLUTE, AddressingModes.IMMEDIATE, AddressingModes.IMPLIED),
-        #     ([0x20, 0x02, 0x10, 0xA9, 0x01, 0x60], 3),
-        #     DEFAULT_STATE,
-        #     {"A": 1, "PC": 0x1000, "X": 0, "Y": 0, "S": DEFAULT_FLAG, "SP": 255, "MEMORY": get_memory_map()}
-        # ),
+        (
+            # program shape
+            # JSR $1000 ;jump to subroutine at $1000                           0x0FFF
+            # LDA #$01 ;<- PROGRAM COUNTER LOCATION AT END                     0x1000
+            # ...more code...
+            # some_routine:
+            #     LDA #$01 ;load accumulator with 1 (immediate addressing)     0x1001
+            #     RTS ;return from subroutine                                  0x1002
+            # ...more code...
+            # """
+            (Opcodes.JSR, Opcodes.LDA, Opcodes.RTS),
+            (AddressingModes.ABSOLUTE, AddressingModes.IMMEDIATE, AddressingModes.IMPLIED),
+            ([0x20, 0x02, 0x10, 0xA9, 0x01, 0x60], 3),
+            DEFAULT_STATE,
+            {
+                "A": 1,
+                "PC": 0x1002,
+                "X": 0,
+                "Y": 0,
+                "S": DEFAULT_FLAG,
+                "SP": 255,
+                "MEMORY": get_memory_map({0x01FE: 0x02, 0x01FF: 0x10}),
+            },
+        ),
     ],
 )
 def test_assembly_cpu(
@@ -76,8 +84,4 @@ def test_assembly_cpu(
 
         _steps += 1
 
-    print(compare_lists(cpu.state["MEMORY"], exit_state["MEMORY"]))
     assert cpu.state == exit_state
-
-
-# find the largest number divisible
