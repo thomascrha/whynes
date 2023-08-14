@@ -20,7 +20,7 @@ def compare_lists(list1, list2):
         (
             # program shape
             # JSR $1000 ;jump to subroutine at $1000              0x0FFF
-            # push next instruction to stack i.e. 0x1000
+            # push next instruction to stack i.e. 0x1002
             (Opcodes.JSR,),
             (AddressingModes.ABSOLUTE,),
             ([0x20, 0x00, 0x10], 1),
