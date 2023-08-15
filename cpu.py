@@ -62,6 +62,7 @@ class CPU:
         )
         self.stack_start = 0x0100
 
+    #
     @property
     def state(self):
         return {
@@ -284,7 +285,6 @@ class CPU:
 
     def BCC(self, value):
         # Branch on Carry Clear
-        self.program_counter += self.instruction.no_bytes
         if self.get_flag(Flag.CARRY) == 0:
             self.program_counter += value
 
@@ -292,13 +292,11 @@ class CPU:
         # Branch on Carry Set
         # branch on C = 1
 
-        self.program_counter += self.instruction.no_bytes
         if self.get_flag(Flag.CARRY) == 1:
             self.program_counter += value
 
     def BEQ(self, value):
         # Branch on Result Zero
-        self.program_counter += self.instruction.no_bytes
         if self.get_flag(Flag.ZERO) == 1:
             self.program_counter += value
 
@@ -330,21 +328,17 @@ class CPU:
 
     def BMI(self, value):
         # Branch on Result Minus
-        self.program_counter += self.instruction.no_bytes
         if self.get_flag(Flag.NEGATIVE) == 1:
             self.program_counter += value
 
     def BNE(self, value):
         # Branch on Result not Zero
-        self.program_counter += self.instruction.no_bytes
-
         # Fetch the value from memory based on the addressing mode
         if self.get_flag(Flag.ZERO) == 0:
             self.program_counter += value
 
     def BPL(self, value):
         # Branch on Result Plus
-        self.program_counter += self.instruction.no_bytes
         if self.get_flag(Flag.NEGATIVE) == 0:
             self.program_counter = +value
 
@@ -361,13 +355,11 @@ class CPU:
 
     def BVC(self, value):
         # Branch on Overflow Clear
-        self.program_counter += self.instruction.no_bytes
         if self.get_flag(Flag.OVERFLOW) == 0:
             self.program_counter += value
 
     def BVS(self, value):
         # Branch on Overflow Set
-        self.program_counter += self.instruction.no_bytes
         if self.get_flag(Flag.OVERFLOW) == 1:
             self.program_counter += value
 
