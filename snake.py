@@ -72,7 +72,7 @@ class SnakeGame:
         self.logger = get_logger(__name__)
         self.memory = Memory()
         # self.memory.setup_snake()
-        self.memory.load_program_rom(program_rom=self.CODE, program_rom_offset=0x0600)
+        self.memory.load_program_rom(program_rom=self.CODE)
         self.cpu = CPU(memory=self.memory)
 
         if self.display:
