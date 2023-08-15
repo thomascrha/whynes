@@ -137,6 +137,18 @@ def parse_opcode_addressing_mode(cpu: "CPU", table: List[str], opcode_name: str)
 
 
 def load_opcodes(cpu: "CPU", file_path: Path = Path("./instructions.txt")) -> Dict[int, Instruction]:
+    """
+    Reads in the file instructions.txt and parses the opcode table.
+
+    Each instruction table is seperated by a blank line - intially we split the
+    file using this blank line. Each table is then sent to another function for
+    parsing.
+
+    The returned struture is a dictionary where the key is the opcodes HEX
+    reperesentation and the value is an instruction object. This object contains
+    (mostly) all the information needed to execute the instruction.
+    """
+
     with open(file_path, "r") as f:
         opcodes = ",".join(f.readlines())
         opcodes = opcodes.split("\n,\n,")

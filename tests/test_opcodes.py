@@ -15,7 +15,7 @@ def compare_lists(list1, list2):
 
 
 @pytest.mark.parametrize(
-    "opcode, addressing_mode, instruction_sequence_steps, initial_state, exit_state",
+    "opcodes, addressing_modes, instruction_sequence_steps, initial_state, exit_state",
     [
         (
             # program shape
@@ -59,16 +59,128 @@ def compare_lists(list1, list2):
                 "MEMORY": get_memory_map({0x01FE: 0x02, 0x01FF: 0x10}),
             },
         ),
+        (
+            # program shape
+            # start the snake in a horizontal position in the middle of the game field
+            # having a total length of one head and 4 bytes for the segments, meaning a
+            # total length of 3: the head and two segments.
+            # The head is looking right, and the snaking moving to the right.
+            #
+            # initial snake direction (2 => right)
+            #   lda #2   ;start direction, put the dec number 2 in register A
+            #   sta $02  ;store value of register A at address $02
+            #
+            # initial snake length of 4
+            #   lda #4   ;start length, put the dec number 4 (the snake is 4 bytes long) in register A
+            #   sta $03  ;store value of register A at address $03
+            #
+            # Initial snake head's location's least significant byte to determine
+            # where in a 8x32 strip the head will start. hex $11 is just right
+            # of the center of the first row of a strip
+            #   lda #$11 ;put the hex number $11 (dec 17) in register A
+            #   sta $10  ;store value of register A at address hex 10
+            #
+            # Initial snake body, two least significant bytes set to hex $10
+            # and hex $0f, one and two places left of the head respectively
+            #   lda #$10 ;put the hex number $10 (dec 16) in register A
+            #   sta $12  ;store value of register A at address hex $12
+            #   lda #$0f ;put the hex number $0f (dec 15) in register A
+            #   sta $14  ;store value of register A at address hex $14
+            #
+            # the most significant bytes of the head and body of the snake
+            # are all set to hex $04, which is the third 8x32 strip.
+            #   lda #$04 ;put the hex number $04 in register A
+            #   sta $11  ;store value of register A at address hex 11
+            #   sta $13  ;store value of register A at address hex 13
+            #   sta $15  ;store value of register A at address hex 15
+            #   rts      ;return
+            (
+                Opcodes.LDA,
+                Opcodes.STA,
+                Opcodes.LDA,
+                Opcodes.STA,
+                Opcodes.LDA,
+                Opcodes.STA,
+                Opcodes.LDA,
+                Opcodes.STA,
+                Opcodes.LDA,
+                Opcodes.STA,
+                Opcodes.LDA,
+                Opcodes.STA,
+                Opcodes.STA,
+                Opcodes.STA,
+            ),
+            (
+                AddressingModes.IMMEDIATE,
+                AddressingModes.ZERO_PAGE,
+                AddressingModes.IMMEDIATE,
+                AddressingModes.ZERO_PAGE,
+                AddressingModes.IMMEDIATE,
+                AddressingModes.ZERO_PAGE,
+                AddressingModes.IMMEDIATE,
+                AddressingModes.ZERO_PAGE,
+                AddressingModes.IMMEDIATE,
+                AddressingModes.ZERO_PAGE,
+                AddressingModes.IMMEDIATE,
+                AddressingModes.ZERO_PAGE,
+                AddressingModes.ZERO_PAGE,
+                AddressingModes.ZERO_PAGE,
+            ),
+            (
+                # fmt: off
+                [
+                    0xa9, 0x02,
+                    0x85, 0x02,
+                    0xa9, 0x04,
+                    0x85, 0x03,
+                    0xa9, 0x11,
+                    0x85, 0x10,
+                    0xa9, 0x10,
+                    0x85, 0x12,
+                    0xa9, 0x0f,
+                    0x85, 0x14,
+                    0xa9, 0x04,
+                    0x85, 0x11,
+                    0x85, 0x13,
+                    0x85, 0x15,
+                ],
+                # fmt: on
+                14
+            ),
+            DEFAULT_STATE,
+            {
+                "A": 4,
+                "PC": 0x101B,
+                "X": 0,
+                "Y": 0,
+                "S": DEFAULT_FLAG,
+                "SP": 255,
+                "MEMORY": get_memory_map(
+                    {
+                        0x0002: 0x02,
+                        0x0003: 0x04,
+                        0x0010: 0x11,
+                        0x0012: 0x10,
+                        0x0014: 0x0F,
+                        0x0011: 0x04,
+                        0x0013: 0x04,
+                        0x0015: 0x04,
+                    }
+                ),
+            },
+        ),
     ],
 )
 def test_assembly_cpu(
-    opcode: Opcodes,
-    addressing_mode: AddressingModes,
+    opcodes: Opcodes,
+    addressing_modes: AddressingModes,
     instruction_sequence_steps: Tuple[List[int], int],
     initial_state: dict,
     exit_state: dict,
 ):
     intstruction_sequence, steps = instruction_sequence_steps
+    assert len(opcodes) == len(addressing_modes) == steps
+
     memory = Memory(program_rom_offset=0x0FFF)
     memory.load_program_rom(program_rom=intstruction_sequence)
 
@@ -79,8 +191,8 @@ def test_assembly_cpu(
     while _steps < steps:
         cpu.step()
 
-        assert cpu.instruction.opcode == opcode[_steps]
-        assert cpu.instruction.addressing_mode == addressing_mode[_steps]
+        assert cpu.instruction.opcode == opcodes[_steps]
+        assert cpu.instruction.addressing_mode == addressing_modes[_steps]
 
         _steps += 1
 
