@@ -156,14 +156,14 @@ def compare_lists(list1, list2):
                 "SP": 255,
                 "MEMORY": get_memory_map(
                     {
-                        0x0002: 0x02,
-                        0x0003: 0x04,
-                        0x0010: 0x11,
-                        0x0011: 0x04,
-                        0x0012: 0x10,
-                        0x0013: 0x04,
-                        0x0014: 0x0F,
-                        0x0015: 0x04,
+                        0x0002: 0x02,  # initial snake direction (2 => right)
+                        0x0003: 0x04,  # initial snake length of 4
+                        0x0010: 0x11,  # Initial snake head's location's least significant bytes
+                        0x0011: 0x04,  # the most significant bytes of the head and body of the snake
+                        0x0012: 0x10,  # Initial snake body, two least significant bytes set to hex $10
+                        0x0013: 0x04,  # the most significant bytes of the head and body of the snake
+                        0x0014: 0x0F,  # Initial snake body, two least significant bytes set to hex $0f
+                        0x0015: 0x04,  # the most significant bytes of the head and body of the snake
                     }
                 ),
             },
