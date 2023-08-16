@@ -37,17 +37,17 @@ def compare_lists(list1, list2):
         ),
         (
             # program shape
-            # JSR $1000 ;jump to subroutine at $1000                           0x0FFF
-            # LDA #$01 ;<- PROGRAM COUNTER LOCATION AT END                     0x1000
+            # JSR $1004 ;jump to subroutine at $1004                           0x0FFF
+            # LDA #$01 ;<- PROGRAM COUNTER LOCATION AT END                     0x1002
             # ...more code...
             # some_routine:
-            #     LDA #$01 ;load accumulator with 1 (immediate addressing)     0x1001
-            #     RTS ;return from subroutine                                  0x1002
+            #     LDA #$01 ;load accumulator with 1 (immediate addressing)     0x1004
+            #     RTS ;return from subroutine                                  0x1006
             # ...more code...
             # """
             (Opcodes.JSR, Opcodes.LDA, Opcodes.RTS),
             (AddressingModes.ABSOLUTE, AddressingModes.IMMEDIATE, AddressingModes.IMPLIED),
-            ([0x20, 0x02, 0x10, 0xA9, 0x01, 0x60], 3),
+            ([0x20, 0x04, 0x10, 0xA9, 0x02, 0xA9, 0x01, 0x60], 3),
             DEFAULT_STATE,
             {
                 "A": 1,
@@ -67,33 +67,32 @@ def compare_lists(list1, list2):
             # The head is looking right, and the snaking moving to the right.
             #
             # initial snake direction (2 => right)
-            #   lda #2   ;start direction, put the dec number 2 in register A
-            #   sta $02  ;store value of register A at address $02
+            #   LDA #2   ;start direction, put the dec number 2 in register A                                    0x0FFF
+            #   STA $02  ;store value of register A at address $02                                               0x1001
             #
             # initial snake length of 4
-            #   lda #4   ;start length, put the dec number 4 (the snake is 4 bytes long) in register A
-            #   sta $03  ;store value of register A at address $03
+            #   LDA #4   ;start length, put the dec number 4 (the snake is 4 bytes long) in register A           0x1003
+            #   STA $03  ;store value of register A at address $03                                               0x1005
             #
             # Initial snake head's location's least significant byte to determine
             # where in a 8x32 strip the head will start. hex $11 is just right
             # of the center of the first row of a strip
-            #   lda #$11 ;put the hex number $11 (dec 17) in register A
-            #   sta $10  ;store value of register A at address hex 10
+            #   LDA #$11 ;put the hex number $11 (dec 17) in register A                                          0x1007
+            #   STA $10  ;store value of register A at address hex 10                                            0x1009
             #
             # Initial snake body, two least significant bytes set to hex $10
             # and hex $0f, one and two places left of the head respectively
-            #   lda #$10 ;put the hex number $10 (dec 16) in register A
-            #   sta $12  ;store value of register A at address hex $12
-            #   lda #$0f ;put the hex number $0f (dec 15) in register A
-            #   sta $14  ;store value of register A at address hex $14
+            #   LDA #$10 ;put the hex number $10 (dec 16) in register A                                          0x100b
+            #   STA $12  ;store value of register A at address hex $12                                           0x100d
+            #   LDA #$0f ;put the hex number $0f (dec 15) in register A                                          0x100f
+            #   STA $14  ;store value of register A at address hex $14                                           0x1011
             #
             # the most significant bytes of the head and body of the snake
             # are all set to hex $04, which is the third 8x32 strip.
-            #   lda #$04 ;put the hex number $04 in register A
-            #   sta $11  ;store value of register A at address hex 11
-            #   sta $13  ;store value of register A at address hex 13
-            #   sta $15  ;store value of register A at address hex 15
-            #   rts      ;return
+            #   LDA #$04 ;put the hex number $04 in register A                                                   0x1013
+            #   STA $11  ;store value of register A at address hex 11                                            0x1015
+            #   STA $13  ;store value of register A at address hex 13                                            0x1017
+            #   STA $15  ;store value of register A at address hex 15                                            0x1019
             (
                 Opcodes.LDA,
                 Opcodes.STA,
@@ -150,7 +149,7 @@ def compare_lists(list1, list2):
             DEFAULT_STATE,
             {
                 "A": 4,
-                "PC": 0x101B,
+                "PC": 0x101B,  # 0x1019 + 2
                 "X": 0,
                 "Y": 0,
                 "S": DEFAULT_FLAG,
@@ -160,10 +159,10 @@ def compare_lists(list1, list2):
                         0x0002: 0x02,
                         0x0003: 0x04,
                         0x0010: 0x11,
-                        0x0012: 0x10,
-                        0x0014: 0x0F,
                         0x0011: 0x04,
+                        0x0012: 0x10,
                         0x0013: 0x04,
+                        0x0014: 0x0F,
                         0x0015: 0x04,
                     }
                 ),
