@@ -405,13 +405,21 @@ class CPU:
             self.clear_flag(Flag.CARRY)
 
     def CPX(self, value):
-        # Compare Memory and Index X
-        # X - M
         if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
             value = self.memory.get_memory(value)
 
-        # Perform the subtraction
-        if self.x >= value:
+        if self.x == value:
+            self.set_flag(Flag.ZERO)
+        else:
+            self.clear_flag(Flag.ZERO)
+
+        # he N flag is set or reset by the result bit 7
+        if value & 0x80 != 0:
+            self.set_flag(Flag.NEGATIVE)
+        else:
+            self.clear_flag(Flag.NEGATIVE)
+
+        if value <= self.x:
             self.set_flag(Flag.CARRY)
         else:
             self.clear_flag(Flag.CARRY)
@@ -422,8 +430,18 @@ class CPU:
         if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
             value = self.memory.get_memory(value)
 
-        # Perform the subtraction
-        if self.y >= value:
+        if self.y == value:
+            self.set_flag(Flag.ZERO)
+        else:
+            self.clear_flag(Flag.ZERO)
+
+        # he N flag is set or reset by the result bit 7
+        if value & 0x80 != 0:
+            self.set_flag(Flag.NEGATIVE)
+        else:
+            self.clear_flag(Flag.NEGATIVE)
+
+        if value <= self.y:
             self.set_flag(Flag.CARRY)
         else:
             self.clear_flag(Flag.CARRY)

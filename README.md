@@ -3,6 +3,8 @@
 
 __A Nintendo Entertainment System emulator written in python.__
 
+__(pssst... it's not finished yet)__
+
 ## Why ?
 
 <img src="https://media.tenor.com/KA4TdkOcYT8AAAAM/jeff-goldblum.gif" width="70%">
@@ -12,19 +14,27 @@ Why not. This is a project designed as an educational experiment so I can do two
 * learn how to emulate hardware in software.
 * use that knowledge to then learn other languages.
 
-I know python pretty well - I've been using it professionally for (insert flex) years
-and a I'm pretty comfortable with it (no error; good program).
+I know python pretty well - I've been using it professionally for (insert flex) years and a I'm pretty comfortable with
+it (no error; good program).
 
-I've always wanted to learn how to write an emulator, but I don't know other
-more suitable languages to do that in - so I thought why not just write one in python.
-Is writing a emulator in python a good idea ? The really depends on your motivation.
+I've always wanted to learn how to write an emulator, but I don't know other more suitable languages to do that in - so
+I thought why not just write one in python. Is writing a emulator in python a good idea ? No.
 
-Then I can implement the same emulator in other languages and *bing bong boom* I've become
-a `giga-polyglot-chad programmer`.
+Then I can implement the same emulator in other languages and *bing bong boom* I've become a
+`giga-polyglot-chad programmer`.
 
 ## Rules
 
 1. When Mario can jump, I've finished.
+
+## Snake (Bonus)
+
+I needed a way to confirm my implementation of the CPU was correct, so I found a [snake game](https://gist.github.com/wkjagt/9043907)
+written in 6502 assembly and given the instructions [here](https://bugzmanov.github.io/nes_ebook/chapter_3_4.html), I
+implemented a snake game using PyGame (SDL) and pyinput for controls and the CPU implementation.
+(currently not working which is why it was implemented)
+
+`python3 snake.py`
 
 ## Resources
 
