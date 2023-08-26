@@ -4,6 +4,7 @@ from typing import Optional
 from instructions import AddressingModes, Instruction, Opcodes, load_opcodes
 from logger import get_logger
 from memory import Memory
+from numpy import compare_chararrays
 from utils import endianify
 
 logger = get_logger(__name__)
@@ -382,77 +383,46 @@ class CPU:
         # 0 -> V
         self.clear_flag(Flag.OVERFLOW)
 
+    def compare(self, register, value):
+        if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
+            value = self.memory.get_memory(value)
+
+        if register == value:
+            self.set_flag(Flag.ZERO)
+        else:
+            self.clear_flag(Flag.ZERO)
+
+        # he N flag is set or reset by the result bit 7
+        if value & 0x80 != 0:
+            self.set_flag(Flag.NEGATIVE)
+        else:
+            self.clear_flag(Flag.NEGATIVE)
+
+        if value <= register:
+            self.set_flag(Flag.CARRY)
+        else:
+            self.clear_flag(Flag.CARRY)
+
     def CMP(self, value):
         # Compare Memory and Accumulator
         # A - M
-        if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
-            value = self.memory.get_memory(value)
-
-        if self.a == value:
-            self.set_flag(Flag.ZERO)
-        else:
-            self.clear_flag(Flag.ZERO)
-
-        # he N flag is set or reset by the result bit 7
-        if value & 0x80 != 0:
-            self.set_flag(Flag.NEGATIVE)
-        else:
-            self.clear_flag(Flag.NEGATIVE)
-
-        if value <= self.a:
-            self.set_flag(Flag.CARRY)
-        else:
-            self.clear_flag(Flag.CARRY)
+        self.compare(self.a, value)
 
     def CPX(self, value):
-        if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
-            value = self.memory.get_memory(value)
-
-        if self.x == value:
-            self.set_flag(Flag.ZERO)
-        else:
-            self.clear_flag(Flag.ZERO)
-
-        # he N flag is set or reset by the result bit 7
-        if value & 0x80 != 0:
-            self.set_flag(Flag.NEGATIVE)
-        else:
-            self.clear_flag(Flag.NEGATIVE)
-
-        if value <= self.x:
-            self.set_flag(Flag.CARRY)
-        else:
-            self.clear_flag(Flag.CARRY)
+        # Compare Memory and Index X
+        # X - M
+        self.compare(self.x, value)
 
     def CPY(self, value):
         # Compare Memory and Index Y
         # Y - M
-        if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
-            value = self.memory.get_memory(value)
-
-        if self.y == value:
-            self.set_flag(Flag.ZERO)
-        else:
-            self.clear_flag(Flag.ZERO)
-
-        # he N flag is set or reset by the result bit 7
-        if value & 0x80 != 0:
-            self.set_flag(Flag.NEGATIVE)
-        else:
-            self.clear_flag(Flag.NEGATIVE)
-
-        if value <= self.y:
-            self.set_flag(Flag.CARRY)
-        else:
-            self.clear_flag(Flag.CARRY)
+        self.compare(self.y, value)
 
     def DEC(self, value):
         # Decrement Memory by One
         # M - 1 -> M
-        value = self.memory.get_memory(value)
-
         # Decrement the memory value by One
-        self.memory.set_memory(value, self.memory.get_memory(value) - 1)
+        value = self.memory.set_memory(value, self.memory.get_memory(value) - 1)
 
         # Update the Zero flag
         if value == 0:
@@ -466,39 +436,28 @@ class CPU:
         else:
             self.clear_flag(Flag.NEGATIVE)
 
-    def DEX(self, value):
-        # Decrement Index X by One
-        # X - 1 -> X
-        self.x -= 1
+    def decrement(self, register):
+        register -= 1
 
-        # Update the Zero flag
-        if self.x == 0:
+        if register == 0:
             self.set_flag(Flag.ZERO)
         else:
             self.clear_flag(Flag.ZERO)
 
-        # Update the Negative flag
-        if self.x & 0x80 != 0:
+        if register & 0x80 != 0:
             self.set_flag(Flag.NEGATIVE)
         else:
             self.clear_flag(Flag.NEGATIVE)
+
+    def DEX(self, value):
+        # Decrement Index X by One
+        # X - 1 -> X
+        self.decrement(self.x)
 
     def DEY(self, value):
         # Decrement Index Y by One
         # Y - 1 -> Y
-        self.y -= 1
-
-        # Update the Zero flag
-        if self.y == 0:
-            self.set_flag(Flag.ZERO)
-        else:
-            self.clear_flag(Flag.ZERO)
-
-        # Update the Negative flag by checking the sign bit of the result
-        if self.y & 0x80 != 0:
-            self.set_flag(Flag.NEGATIVE)
-        else:
-            self.clear_flag(Flag.NEGATIVE)
+        self.decrement(self.y)
 
     def EOR(self, value):
         # Exclusive-OR Memory with Accumulator
@@ -522,7 +481,7 @@ class CPU:
 
     def INC(self, value):
         # Increment Memory by One
-        value = self.memory.get_memory(value)
+        value = self.memory.set_memory(value, self.memory.get_memory(value) + 1)
 
         # Update the Zero Flag
         if value == 0:
@@ -536,31 +495,28 @@ class CPU:
         else:
             self.clear_flag(Flag.NEGATIVE)
 
-    def INX(self, value):
-        # Update the Zero flag
-        if self.x == 0:
+    def increment(self, register):
+        register += 1
+
+        if register == 0:
             self.set_flag(Flag.ZERO)
         else:
             self.clear_flag(Flag.ZERO)
 
-        # Update the Negative flag
-        if self.x & 0x80 != 0:
+        if register & 0x80 != 0:
             self.set_flag(Flag.NEGATIVE)
         else:
             self.clear_flag(Flag.NEGATIVE)
+
+    def INX(self, value):
+        # Increment Index X by one
+        # X + 1 -> X
+        self.increment(self.x)
 
     def INY(self, value):
-        # Update the Zero flag
-        if self.y == 0:
-            self.set_flag(Flag.ZERO)
-        else:
-            self.clear_flag(Flag.ZERO)
-
-        # Update the Negative flag
-        if self.y & 0x80 != 0:
-            self.set_flag(Flag.NEGATIVE)
-        else:
-            self.clear_flag(Flag.NEGATIVE)
+        # Increment Index Y by One
+        # Y + 1 -> Y
+        self.increment(self.y)
 
     def JMP(self, value):
         # Jump to New Location
@@ -580,71 +536,38 @@ class CPU:
         # Set the program counter to the address
         self.program_counter = value
 
-    def LDA(self, value):
-        # Load Accumulator with Memory
-        # M -> A
+    def load(self, source, value):
         if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
             value = self.memory.get_memory(value)
 
-        # Load the value into the accumulator
-        self.a = value
+        source = copy(value)
 
         # Update the Zero flag
-        if self.a == 0:
+        if source == 0:
             self.set_flag(Flag.ZERO)
         else:
             self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag by checking the sign bit of the result
-        if self.a & 0x80 != 0:
+        if source & 0x80 != 0:
             self.set_flag(Flag.NEGATIVE)
         else:
             self.clear_flag(Flag.NEGATIVE)
+
+    def LDA(self, value):
+        # Load Accumulator with Memory
+        # M -> A
+        self.load(self.a, value)
 
     def LDX(self, value):
         # Load Index X with Memory
         # M -> X
-        # Fetch the value from memory based on the addressing mode
-
-        if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
-            value = self.memory.get_memory(value)
-
-        # Load the value into the index register
-        self.x = value
-
-        # Update the Zero flag
-        if self.x == 0:
-            self.set_flag(Flag.ZERO)
-        else:
-            self.clear_flag(Flag.ZERO)
-
-        # Update the Negative flag by checking the sign bit of the result
-        if self.x & 0x80 != 0:
-            self.set_flag(Flag.NEGATIVE)
-        else:
-            self.clear_flag(Flag.NEGATIVE)
+        self.load(self.x, value)
 
     def LDY(self, value):
         # Load Index Y with Memory
         # M -> Y
-        # Fetch the value from memory based on the addressing mode
-        if self.instruction.addressing_mode != AddressingModes.IMMEDIATE:
-            value = self.memory.get_memory(value)
-
-        # Load the value into the index register
-        self.y = value
-
-        # Update the Zero flag
-        if self.y == 0:
-            self.set_flag(Flag.ZERO)
-        else:
-            self.clear_flag(Flag.ZERO)
-
-        # Update the Negative flag by checking the sign bit of the result
-        if self.y & 0x80 != 0:
-            self.set_flag(Flag.NEGATIVE)
-        else:
-            self.clear_flag(Flag.NEGATIVE)
+        self.load(self.y, value)
 
     def LSR(self, value):
         # Logical Shift Right One Bit (Memory or Accumulator)
@@ -873,92 +796,47 @@ class CPU:
         # Y -> M
         self.memory.set_memory(value, self.y)
 
-    def TAX(self, value):
-        # Transfer Accumulator to Index X
-        # A -> X
-        self.x = copy(self.a)
+    def transfer(self, source, destination):
+        destination = copy(source)
 
         # Update the Zero flag
-        if self.x == 0:
+        if destination == 0:
             self.set_flag(Flag.ZERO)
         else:
             self.clear_flag(Flag.ZERO)
 
         # Update the Negative flag
-        if self.x & 0x80 != 0:
+        if destination & 0x80 != 0:
             self.set_flag(Flag.NEGATIVE)
         else:
             self.clear_flag(Flag.NEGATIVE)
+
+    def TAX(self, value):
+        # Transfer Accumulator to Index X
+        # A -> X
+        self.transfer(self.a, self.x)
 
     def TAY(self, value):
         # Transfer Accumulator to Index Y
         # A -> Y
-        self.y = copy(self.a)
-
-        # Update the Zero flag
-        if self.y == 0:
-            self.set_flag(Flag.ZERO)
-        else:
-            self.clear_flag(Flag.ZERO)
-
-        # Update the Negative flag
-        if self.y & 0x80 != 0:
-            self.set_flag(Flag.NEGATIVE)
-        else:
-            self.clear_flag(Flag.NEGATIVE)
+        self.transfer(self.a, self.y)
 
     def TSX(self, value):
         # Transfer Stack Pointer to Index X
         # SP -> X
-        self.x = copy(self.stack_pointer)
-
-        # Update the Zero flag
-        if self.x == 0:
-            self.set_flag(Flag.ZERO)
-        else:
-            self.clear_flag(Flag.ZERO)
-
-        # Update the Negative flag
-        if self.x & 0x80 != 0:
-            self.set_flag(Flag.NEGATIVE)
-        else:
-            self.clear_flag(Flag.NEGATIVE)
+        self.transfer(self.stack_pointer, self.x)
 
     def TXA(self, value):
         # Transfer Index X to Accumulator
         # X -> A
-        self.a = copy(self.x)
-
-        # Update the Zero flag
-        if self.a == 0:
-            self.set_flag(Flag.ZERO)
-        else:
-            self.clear_flag(Flag.ZERO)
-
-        # Update the Negative flag
-        if self.a & 0x80 != 0:
-            self.set_flag(Flag.NEGATIVE)
-        else:
-            self.clear_flag(Flag.NEGATIVE)
+        self.transfer(self.x, self.a)
 
     def TXS(self, value):
         # Transfer Index X to Stack Pointer
         # X -> SP
-        self.stack_pointer = copy(self.x)
+        self.transfer(self.x, self.stack_pointer)
 
     def TYA(self, value):
         # Transfer Index Y to Accumulator
         # Y -> A
-        self.a = copy(self.y)
-
-        # Update the Zero flag
-        if self.a == 0:
-            self.set_flag(Flag.ZERO)
-        else:
-            self.clear_flag(Flag.ZERO)
-
-        # Update the Negative flag
-        if self.a & 0x80 != 0:
-            self.set_flag(Flag.NEGATIVE)
-        else:
-            self.clear_flag(Flag.NEGATIVE)
+        self.transfer(self.y, self.a)

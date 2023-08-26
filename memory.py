@@ -26,8 +26,9 @@ class Memory:
     def get_memory(self, address: int) -> int:
         return self.memory[address]
 
-    def set_memory(self, address: int, value: int) -> None:
+    def set_memory(self, address: int, value: int) -> int:
         self.memory[address] = value
+        return value
 
     def get_memory_slice(self, start: int, end: int) -> List[int]:
         return self.memory[start:end]
