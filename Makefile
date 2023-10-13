@@ -1,9 +1,6 @@
 SHELL      := /bin/bash
 
-test:
-	pytest -x -vv
-.PHONY: test
+snake:
+	PYTHONPATH=${PYTHONPATH}:$(pwd)/src python3 src/snake.py
+.PHONY: snake
 
-run:
-	python3 console.py -r ./nes-test-roms/instr_test-v5/official_only.nes
-.PHONY: run

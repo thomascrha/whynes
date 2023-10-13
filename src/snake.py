@@ -10,7 +10,7 @@ import pygame.surfarray as surfarray
 from cpu import CPU
 from logger import get_logger
 from memory import Memory
-# from pynput.keyboard import Key, Listener
+from pynput.keyboard import Key, Listener
 
 
 def threaded(fn):
@@ -85,8 +85,7 @@ class SnakeGame:
 
         if self.keyboard:
             # start read input thread
-            # self.read_input()
-            pass
+            self.read_input()
 
         self.last_key_pressed = None
 
@@ -124,22 +123,22 @@ class SnakeGame:
         pixel_array = np.array(*[np.array_split(self.memory.memory[0x0200:0x0600], 32)]).astype(np.uint8)
         return pixel_array
 
-    # @threaded
-    # def read_input(self) -> Optional[int]:
-    #     def on_press(key):
-    #         self.logger.info(key)
-    #         if key == Key.up:
-    #             self.last_key_pressed = 0x77
-    #         elif key == Key.down:
-    #             self.last_key_pressed = 0x73
-    #         elif key == Key.left:
-    #             self.last_key_pressed = 0x61
-    #         elif key == Key.right:
-    #             self.last_key_pressed = 0x64
-    #
-    #     with Listener(on_press=on_press) as listener:
-    #         listener.join()
-    #
+    @threaded
+    def read_input(self) -> Optional[int]:
+        def on_press(key):
+            self.logger.info(key)
+            if key == Key.up:
+                self.last_key_pressed = 0x77
+            elif key == Key.down:
+                self.last_key_pressed = 0x73
+            elif key == Key.left:
+                self.last_key_pressed = 0x61
+            elif key == Key.right:
+                self.last_key_pressed = 0x64
 
-SnakeGame(display=False, keyboard=False)
-# SnakeGame()
+        with Listener(on_press=on_press) as listener:
+            listener.join()
+
+
+#SnakeGame(display=False, keyboard=False)
+SnakeGame()
