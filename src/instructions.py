@@ -181,7 +181,7 @@ def parse_opcode_addressing_mode(cpu: "CPU", table: List[str], opcode_name: str)
     return opcodes
 
 
-def load_opcodes(cpu: "CPU", file_path: Path = Path("src/instructions.txt")) -> Dict[int, Instruction]:
+def load_opcodes(cpu: "CPU", file_path: Path = Path("./instructions.txt")) -> Dict[int, Instruction]:
     """
     Reads in the file instructions.txt and parses the opcode table.
 

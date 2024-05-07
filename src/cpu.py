@@ -1,6 +1,6 @@
 import enum
 from copy import copy
-from typing import Optional
+from typing import List, Optional, Set
 from instructions import AddressingModes, Instruction, Opcodes, load_opcodes
 from logger import get_logger
 from memory import Memory
@@ -9,7 +9,34 @@ from utils import endianify
 
 logger = get_logger(__name__)
 
+"""
+Problem operands
 
+     140292356658992 str = 'SBC'
+     140292356657904 str = 'INX'
+     140292356657136 str = 'CLC'
+     140292356658224 str = 'LDY'
+     140292356658096 str = 'LDA'
+     140292356659312 str = 'STA'
+     140292953382768 str = 'NOP'
+     140292356656176 str = 'DEC'
+     140292356658032 str = 'JSR'
+     140292356659056 str = 'SEC'
+     140292356655088 str = 'ADC'
+     140292356655728 str = 'BCC'
+     140292356655920 str = 'BEQ'
+     140292356653232 str = 'BPL'
+     140292356654000 str = 'CPX'
+     140292356653808 str = 'BNE'
+     140292356658928 str = 'RTS'
+     140292356656240 str = 'BCS'
+     140292953100848 str = 'CMP'
+     140292356657264 str = 'DEX'
+     140292356659760 str = 'TXA'
+     140292356658288 str = 'LSR'
+     140292356658160 str = 'LDX'
+     140292953100720 str = 'AND'
+"""
 class Flag(enum.Flag):
     NULL = 0
     CARRY = 1
@@ -35,6 +62,8 @@ class CPU:
     stack_start: int
 
     instruction: Instruction
+
+    used_instructions: Set[str]
 
     def __init__(self, memory: Memory) -> None:
         self.a = 0x00
@@ -63,7 +92,8 @@ class CPU:
         )
         self.stack_start = 0x0100
 
-    #
+        self.used_instructions = set()
+
     @property
     def state(self):
         return {
@@ -94,7 +124,7 @@ class CPU:
         self.status |= flag
 
     def clear_flag(self, flag: Flag):
-        self.status &= ~flag
+        self.status &= flag
 
     def get_flag(self, flag: Flag):
         return bool(self.status & flag)
@@ -190,6 +220,7 @@ class CPU:
 
         instruction_args = self.process_addressing_mode()
 
+        self.used_instructions.add(self.instruction.opcode.value)
         logger.debug(self.instruction)
         logger.debug(self)
 
@@ -287,8 +318,6 @@ class CPU:
         else:
             self.clear_flag(Flag.NEGATIVE)
 
-
-
     def BIT(self, value):
         # Test Bits in Memory with Accumulator
         # A AND M, M7 -> N, M6 -> V
@@ -363,21 +392,21 @@ class CPU:
         # Set the program counter to the interrupt vector
         self.program_counter = self.memory.memory[0xFFFE]
 
-    def CLC(self, value):
+    def CLC(self, _):
         # Clear Carry Flag
         self.clear_flag(Flag.CARRY)
 
-    def CLD(self, value):
+    def CLD(self, _):
         # Clear Decimal Mode
         # 0 -> D
         self.clear_flag(Flag.DECIMAL)
 
-    def CLI(self, value):
+    def CLI(self, _):
         # Clear Interrupt Disable Bit
         # 0 -> I
         self.clear_flag(Flag.INTERRUPT_DISABLE)
 
-    def CLV(self, value):
+    def CLV(self, _):
         # Clear Overflow Flag
         # 0 -> V
         self.clear_flag(Flag.OVERFLOW)
@@ -503,7 +532,7 @@ class CPU:
         else:
             self.clear_flag(Flag.NEGATIVE)
 
-    def INX(self, value):
+    def INX(self, _):
         # Increment Index X by one
         # X + 1 -> X
         self.x += 1
@@ -518,7 +547,7 @@ class CPU:
         else:
             self.clear_flag(Flag.NEGATIVE)
 
-    def INY(self, value):
+    def INY(self, _):
         # Increment Index Y by One
         # Y + 1 -> Y
         self.y += 1

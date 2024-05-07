@@ -140,5 +140,5 @@ class SnakeGame:
             listener.join()
 
 
-#SnakeGame(display=False, keyboard=False)
-SnakeGame()
+SnakeGame(display=False, keyboard=False)
+#SnakeGame()
