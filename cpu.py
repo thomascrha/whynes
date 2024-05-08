@@ -161,15 +161,23 @@ class CPU:
                 sys.exit(-1)
 
             match opcode.code:
+                # LDA
                 case 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1:
                     self.lda(opcode.mode)
 
+                # STA
+                case 0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91:
+                    self.sta(opcode.mode);
+
+                # TAX
                 case 0xaa:
                     self.tax()
 
+                # INX
                 case 0xe8:
                     self.inx()
 
+                # BREAK
                 case 0x00:
                     return
 
@@ -187,6 +195,10 @@ class CPU:
 
         self.register_a = value
         self.update_zero_and_negative_flags(self.register_a)
+
+    def sta(self, mode):
+        addr = self.get_operand_address(mode)
+        self.mem_write(addr, self.register_a)
 
     def inx(self):
         self.register_x += 1
@@ -250,3 +262,5 @@ def test_lda_from_memory():
     cpu.mem_write(0x10, 0x55)
     cpu.load_and_run([0xa5, 0x10, 0x00])
     assert cpu.register_a == 0x55
+
+def test_sta
