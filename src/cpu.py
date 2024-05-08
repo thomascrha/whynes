@@ -147,6 +147,10 @@ class CPU:
         self.mem_write_u16(0xFFFC, 0x8000)
 
     def reset(self) -> None:
+        self.register_a = 0
+        self.register_y = 0
+        self.register_x = 0
+        self.status = 0
         self.program_counter = self.mem_read_u16(0xFFFC)
 
     def run(self) -> None:
@@ -196,6 +200,10 @@ class CPU:
         self.register_a = value
         self.update_zero_and_negative_flags(self.register_a)
 
+    def adc(self, mode):
+        addr = self.get_operand_address(mode)
+        value
+
     def sta(self, mode):
         addr = self.get_operand_address(mode)
         self.mem_write(addr, self.register_a)
@@ -242,8 +250,7 @@ def test_0xa9_lda_zero_flag():
 
 def test_0xaa_tax_move_a_to_x():
     cpu = CPU()
-    cpu.register_a = 10
-    cpu.load_and_run([0xaa, 0x00])
+    cpu.load_and_run([0xa9, 0x0A,0xaa, 0x00])
     assert cpu.register_x == 10
 
 def test_5_ops_working_together():
@@ -253,8 +260,7 @@ def test_5_ops_working_together():
 
 def test_inx_overflow():
     cpu = CPU()
-    cpu.register_x = 255
-    cpu.load_and_run([0xe8, 0xe8, 0x00])
+    cpu.load_and_run([0xa9, 0xff, 0xaa,0xe8, 0xe8, 0x00])
     assert cpu.register_x == 1
 
 def test_lda_from_memory():
