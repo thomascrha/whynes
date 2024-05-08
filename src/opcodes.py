@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import  Dict, List
 
-
+script_directory = Path(__file__).parent.resolve()
 class Opcode:
     code: int
     mnemonic: str
@@ -17,7 +17,7 @@ class Opcode:
         self.mode = mode
 
     @staticmethod
-    def load_opcodes(file_path: Path = Path("./opcodes.txt")) -> Dict[int, "Opcode"]:
+    def load_opcodes(file_path: Path = Path(__file__).parent.resolve() / "opcodes.txt") -> Dict[int, "Opcode"]:
         """
         Reads in the file instructions.txt and parses the opcode table.
 

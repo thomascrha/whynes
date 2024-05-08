@@ -263,4 +263,4 @@ def test_lda_from_memory():
     cpu.load_and_run([0xa5, 0x10, 0x00])
     assert cpu.register_a == 0x55
 
-def test_sta
+# def test_sta
