@@ -1,23 +1,32 @@
-from typing import Dict, List
+from typing import Any, Dict, List
 from copy import copy
 import enum
 from opcodes import Opcode
 import sys
 
-"""
-7  bit  0
----- ----
-NV1B DIZC
-|||| ||||
-|||| |||+- Carry
-|||| ||+-- Zero
-|||| |+--- Interrupt Disable
-|||| +---- Decimal
-|||+------ (No CPU effect; see: the B flag)
-||+------- (No CPU effect; always pushed as 1)
-|+-------- Overflow
-+--------- Negative
-"""
+class Flags(enum.IntFlag):
+    """
+    7  bit  0
+    ---- ----
+    NV1B DIZC
+    |||| ||||
+    |||| |||+- Carry
+    |||| ||+-- Zero
+    |||| |+--- Interrupt Disable
+    |||| +---- Decimal
+    |||+------ (No CPU effect; see: the B flag)
+    ||+------- (No CPU effect; always pushed as 1)
+    |+-------- Overflow
+    +--------- Negative
+    """
+    CARRY = 1
+    ZERO = 2
+    INTERRUPT_DISABLE = 4
+    DECIMAL = 8
+    BREAK = 16
+    UNUSED = 32
+    OVERFLOW = 64
+    NEGATIVE = 128
 
 class AddressingMode(enum.Enum):
     IMMEDIATE = "IMMEDIATE"
@@ -34,11 +43,12 @@ class AddressingMode(enum.Enum):
     IMPLIED = "IMPLIED"
     ABSOLUTE_INDIRECT = "ABSOLUTE_INDIRECT"
 
+
 class CPU:
     register_a: int
     register_x: int
     register_y: int
-    status: int
+    status: Flags
     program_counter: int
     memory: List[int]
 
@@ -47,7 +57,7 @@ class CPU:
     def __init__(self):
         self.register_x = 0 # 8 bits
         self.register_a = 0 # 8 bits
-        self.status = 0
+        self.status = Flags(0) # 8 bits
 
         self.program_counter = -1
 
@@ -74,7 +84,18 @@ class CPU:
         self.mem_write(pos, low)
         self.mem_write(pos + 1, hi)
 
-    def get_operand_address(self, mode: AddressingMode) -> int:
+    # Flag operations
+    def set_flag(self, flag: Flags):
+        self.status |= flag
+
+    def clear_flag(self, flag: Flags):
+        self.status &= ~flag
+
+    def get_flag(self, flag: Flags) -> bool:
+        return (self.status & flag != 0)
+
+    # Addressing
+    def get_operand_address(self, mode: AddressingMode) -> Any:
         match mode:
             case AddressingMode.IMMEDIATE:
                 return self.program_counter
@@ -150,7 +171,7 @@ class CPU:
         self.register_a = 0
         self.register_y = 0
         self.register_x = 0
-        self.status = 0
+        self.status = Flags(0)
         self.program_counter = self.mem_read_u16(0xFFFC)
 
     def run(self) -> None:
@@ -193,18 +214,14 @@ class CPU:
                 self.program_counter += (opcode.lenght - 1)
 
     # Opcodes
-    def lda(self, mode):
+    def lda(self, mode: AddressingMode):
         addr = self.get_operand_address(mode)
         value = self.mem_read(addr)
 
         self.register_a = value
         self.update_zero_and_negative_flags(self.register_a)
 
-    def adc(self, mode):
-        addr = self.get_operand_address(mode)
-        value
-
-    def sta(self, mode):
+    def sta(self, mode: AddressingMode):
         addr = self.get_operand_address(mode)
         self.mem_write(addr, self.register_a)
 
@@ -218,18 +235,18 @@ class CPU:
         self.update_zero_and_negative_flags(self.register_x)
 
 
-    def update_zero_and_negative_flags(self, result):
+    def update_zero_and_negative_flags(self, result: int):
         # Set zero flag if a is 0
         if result == 0:
-            self.status |= 0b00000010
+            self.set_flag(Flags.ZERO)
         else:
-            self.status &= 0b11111101
+            self.clear_flag(Flags.ZERO)
 
         # set Negative flag if a's 7th bit is set
-        if result & 0b1000000 != 0:
-            self.status |= 0b10000000
+        if result & 0b10000000 != 0:
+            self.set_flag(Flags.NEGATIVE)
         else:
-            self.status &= 0b01111111
+            self.clear_flag(Flags.NEGATIVE)
 
 # Tests
 def test_0xa9_lda_immediate_load_data():
@@ -238,15 +255,15 @@ def test_0xa9_lda_immediate_load_data():
     assert cpu.register_a == 0x05
 
     # make sure the zero flag isn't set
-    assert cpu.status & 0b00000010 == 0b00
+    assert cpu.get_flag(Flags.ZERO) == False
 
     # make sure negative flag isn't set
-    assert cpu.status & 0b10000000 == 0b00
+    assert cpu.get_flag(Flags.NEGATIVE) == False
 
 def test_0xa9_lda_zero_flag():
     cpu = CPU()
     cpu.load_and_run([0xa9, 0x00, 0x00])
-    assert cpu.status & 0b00000010 == 0b10
+    assert cpu.get_flag(Flags.ZERO)
 
 def test_0xaa_tax_move_a_to_x():
     cpu = CPU()
@@ -269,4 +286,4 @@ def test_lda_from_memory():
     cpu.load_and_run([0xa5, 0x10, 0x00])
     assert cpu.register_a == 0x55
 
-# def test_sta
+
