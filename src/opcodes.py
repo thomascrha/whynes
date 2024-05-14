@@ -1,18 +1,19 @@
 from pathlib import Path
 from typing import  Dict, List
-
+from constants import AddressingMode
 script_directory = Path(__file__).parent.resolve()
+
 class Opcode:
     code: int
     mnemonic: str
-    lenght: int
+    length: int
     cycles: int
-    mode: "AddressingMode"
+    mode: AddressingMode
 
-    def __init__(self, code, mnemonic, lenght, cycles, mode):
+    def __init__(self, code, mnemonic, length, cycles, mode):
         self.code = code
         self.mnemonic = mnemonic
-        self.lenght = lenght
+        self.length = length
         self.cycles = cycles
         self.mode = mode
 
@@ -29,7 +30,6 @@ class Opcode:
         reperesentation and the value is an instruction object. This object contains
         (mostly) all the information needed to execute the instruction.
         """
-        from cpu import AddressingMode
         def parse_opcode_table(table: List[str]) -> Dict[int, Opcode]:
             table_headers = table[0].split("\t")
             opcodes = {}
@@ -40,7 +40,7 @@ class Opcode:
                 code = int("".join(row["Opcode"][1:]), 16)
                 addressing_mode = getattr(AddressingMode, row["Addressing Mode"].replace(" ", "_").replace("-", "_").upper())
                 cycles = int(row["No. Cycles"].split("+")[0])
-                lenght = int(row["No. Bytes"])
+                length = int(row["No. Bytes"])
                 mnemonic = row["Assembly Language Form"]
 
                 opcodes[code] = Opcode(
@@ -48,7 +48,7 @@ class Opcode:
                     mode=addressing_mode,
                     cycles=cycles,
                     mnemonic=mnemonic,
-                    lenght=lenght
+                    length=length
                 )
             return opcodes
 

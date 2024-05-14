@@ -122,6 +122,7 @@ def test_get_operand_address_x_indexed_absolute():
     # LDA $3120,X -> load the contents of address "$3120 + X" into A
     cpu = CPU()
 
+    cpu.mem_read
     cpu.mem_write(0x10, 0xbd)
     cpu.mem_write(0x11, 0x20)
     cpu.mem_write(0x12, 0x31)
@@ -180,7 +181,10 @@ def test_get_operand_address_zero_page_indirect_y_indexed():
     cpu.mem_write(0x20, 0x40)
     cpu.mem_write(0x21, 0x50)
 
-    assert cpu.get_operand_address(AddressingMode.ZERO_PAGE_INDIRECT_Y_INDEXED) == 0x5041
+    # the value at 0x20 is 0x5040 little endian
+    # 0x5040 + 0x10 = 0x5050
+
+    assert cpu.get_operand_address(AddressingMode.ZERO_PAGE_INDIRECT_Y_INDEXED) == 0x5050
 
 def test_0xa9_lda_immediate_load_data():
     cpu = CPU()
@@ -283,7 +287,7 @@ def test_0x79_adc_absolute_y():
 # Failing tests
 def test_0x61_adc_indirect_x():
     cpu = CPU()
-    cpu.mem_write(0x10, 0x20)
+    cpu.mem_write(0x20, 0x20)
     cpu.mem_write(0x21, 0x30)
     cpu.mem_write(0x3020, 0x01)
     cpu.load_and_run([0x61, 0x10], **{"register_x": 0x10})
@@ -292,9 +296,170 @@ def test_0x61_adc_indirect_x():
 def test_0x71_adc_indirect_y():
     cpu = CPU()
     cpu.mem_write(0x10, 0x20)
-    cpu.mem_write(0x21, 0x30)
+    cpu.mem_write(0x11, 0x30)
     cpu.mem_write(0x3021, 0x01)
-    cpu.load_and_run([0x71, 0x10], **{"register_y": 0x10})
+    cpu.load_and_run([0x71, 0x10], **{"register_y": 0x01})
     assert cpu.register_a == 1
 
+def test_0x29_and_immediate():
+    cpu = CPU()
+
+    # LDA #$05
+    # AND #$02
+    # BRK
+    cpu.load_and_run([0xa9, 0x05, 0x29, 0x02, 0x00])
+    assert cpu.register_a == 0x05 & 0x02
+
+def test_0x25_and_zero_page():
+    cpu = CPU()
+    cpu.mem_write(0x10, 0x05)
+
+    # LDA $05
+    # AND $10
+    # BRK
+    cpu.load_and_run([0xa9, 0x05, 0x25, 0x10, 0x00])
+    assert cpu.register_a == 0x05 & 0x05
+
+def test_0x35_and_zero_page_x():
+    cpu = CPU()
+    cpu.mem_write(0x20, 0x05)
+
+    # LDA $05
+    # AND $20,X
+    # BRK
+    cpu.load_and_run([0xa9, 0x05, 0x35, 0x10, 0x00], **{"register_x": 0x10})
+    assert cpu.register_a == 0x05 & 0x05
+
+def test_0x2d_and_absolute():
+    cpu = CPU()
+    cpu.mem_write_u16(0x10, 0x05)
+
+    # LDA $05
+    # AND $10
+    # BRK
+    cpu.load_and_run([0xa9, 0x05, 0x2d, 0x10, 0x00])
+    assert cpu.register_a == 0x05 & 0x05
+
+def test_0x3d_and_absolute_x():
+    cpu = CPU()
+    cpu.mem_write_u16(0x10, 0x05)
+
+    # LDA $05
+    # AND $10,X
+    # BRK
+    cpu.load_and_run([0xa9, 0x05, 0x3d, 0x00], **{"register_x": 0x10})
+    assert cpu.register_a == 0x05 & 0x05
+
+def test_0x39_and_absolute_y():
+    cpu = CPU()
+    cpu.mem_write_u16(0x10, 0x05)
+
+    # LDA $05
+    # AND $10,Y
+    # BRK
+    cpu.load_and_run([0xa9, 0x05, 0x39, 0x00], **{"register_y": 0x10})
+    assert cpu.register_a == 0x05 & 0x05
+
+def test_0x21_and_indirect_x():
+    cpu = CPU()
+    cpu.mem_write(0x20, 0x20)
+    cpu.mem_write(0x21, 0x30)
+    cpu.mem_write(0x3020, 0x05)
+
+    # LDA $05
+    # AND ($20,X)
+    # BRK
+    cpu.load_and_run([0xa9, 0x05, 0x21, 0x10], **{"register_x": 0x10})
+    assert cpu.register_a == 0x05 & 0x05
+
+def test_0x31_and_indirect_y():
+    cpu = CPU()
+    cpu.mem_write(0x10, 0x20)
+    cpu.mem_write(0x11, 0x30)
+    cpu.mem_write(0x3021, 0x05)
+
+    # LDA $05
+    # AND ($10),Y
+    # BRK
+    cpu.load_and_run([0xa9, 0x05, 0x31, 0x10], **{"register_y": 0x01})
+    assert cpu.register_a == 0x05 & 0x05
+
+def test_0x0a_asl_accumulator():
+    cpu = CPU()
+
+    # LDA #$05
+    # ASL A
+    # BRK
+    cpu.load_and_run([0xa9, 0b01000000, 0x0a, 0x00])
+    assert cpu.register_a == 0b10000000
+
+def test_0x06_asl_zero_page():
+    cpu = CPU()
+    cpu.mem_write(0x10, 0b01000000)
+
+    # ASL $10
+    # BRK
+    cpu.load_and_run([0x06, 0x10, 0x00])
+    assert cpu.mem_read(0x10) == 0b10000000
+
+def test_0x16_asl_zero_page_x():
+    cpu = CPU()
+    cpu.mem_write(0x20, 0b01000000)
+
+    # ASL $20,X
+    # BRK
+    cpu.load_and_run([0x16, 0x10, 0x00], **{"register_x": 0x10})
+    assert cpu.mem_read(0x20) == 0b10000000
+
+def test_0x0e_asl_absolute():
+    cpu = CPU()
+    cpu.mem_write_u16(0x10, 0b01000000)
+
+    # ASL $10
+    # BRK
+    cpu.load_and_run([0x0e, 0x10, 0x00])
+    assert cpu.mem_read(0x10) == 0b10000000
+
+def test_0x1e_asl_absolute_x():
+    cpu = CPU()
+    cpu.mem_write_u16(0x10, 0b01000000)
+
+    # ASL $10,X
+    # BRK
+    cpu.load_and_run([0x1e, 0x00], **{"register_x": 0x10})
+    assert cpu.mem_read(0x10) == 0b10000000
+
+def test_0x90_bcc():
+    cpu = CPU()
+
+    # Program Counter 0xFFFC
+
+    # BCC $03 -> #3
+    # BRK
+    cpu.load_and_run([0x90, 0x03, 0x00])
+    assert cpu.program_counter == 0x03 + 0x8000
+
+def test_0xb0_bcs():
+    cpu = CPU()
+
+    # BCS $03
+    # BRK
+    cpu.load_and_run([0xb0, 0x03, 0x00], **dict(flags=Flags(0b00000001)))
+    assert cpu.program_counter ==  0x03 + 0x8000
+
+def test_0xf0_beq():
+    cpu = CPU()
+
+    # BEQ $03
+    # BRK
+    cpu.load_and_run([0xf0, 0x03, 0x00], **dict(flags=Flags(0b00000010)))
+    assert cpu.program_counter == 0x03 + 0x8000
+
+def test_0xd0_bne():
+    cpu = CPU()
+
+    # BNE $03
+    # BRK
+    cpu.load_and_run([0xd0, 0x03, 0x00], **dict(flags=Flags(0b00000001)))
+    assert cpu.program_counter == 0x03 + 0x8000
 
