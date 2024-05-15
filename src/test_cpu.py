@@ -24,7 +24,7 @@ def test_clear_flag_zero():
     assert not cpu.get_flag(Flags.ZERO)
 
 def test_set_flag_negative():
-    cpu = CPU()
+    cpu = CPU(**dict(status=Flags(0b00000000)))
     cpu.set_flag(Flags.NEGATIVE)
     assert cpu.get_flag(Flags.NEGATIVE)
     assert not cpu.get_flag(Flags.OVERFLOW)
@@ -35,7 +35,7 @@ def test_set_flag_negative():
 
 
 def test_clear_flag_negative():
-    cpu = CPU()
+    cpu = CPU(**dict(status=Flags(0b00000000)))
     cpu.set_flag(Flags.NEGATIVE)
     cpu.clear_flag(Flags.NEGATIVE)
     assert not cpu.get_flag(Flags.NEGATIVE)
@@ -46,7 +46,7 @@ def test_clear_flag_negative():
     assert not cpu.get_flag(Flags.UNUSED)
 
 def test_get_flags_zero_carry_negative():
-    cpu = CPU()
+    cpu = CPU(**dict(status=Flags(0b00000000)))
     cpu.set_flag(Flags.ZERO)
     cpu.set_flag(Flags.CARRY)
     cpu.set_flag(Flags.NEGATIVE)
@@ -204,7 +204,7 @@ def test_0xa9_lda_zero_flag():
 
 def test_0xab_tax_move_a_to_x():
     cpu = CPU()
-    cpu.load_and_run([0xa9, 0x0A,0xaa, 0x00])
+    cpu.load_and_run([0xa9, 0x0A, 0xaa, 0x00])
     assert cpu.register_x == 10
 
 def test_0x85_sta_absolute():
@@ -430,36 +430,207 @@ def test_0x1e_asl_absolute_x():
     assert cpu.mem_read(0x10) == 0b10000000
 
 def test_0x90_bcc():
-    cpu = CPU()
+    cpu = CPU(**dict(status=Flags(0b00000000)))
 
     # Program Counter 0xFFFC
 
     # BCC $03 -> #3
     # BRK
     cpu.load_and_run([0x90, 0x03, 0x00])
-    assert cpu.program_counter == 0x03 + 0x8000
+                                # branch + pc + (len(prog) - 1)
+    assert cpu.program_counter ==  0x03 + 0x8000 + 0x02
 
 def test_0xb0_bcs():
     cpu = CPU()
 
     # BCS $03
     # BRK
-    cpu.load_and_run([0xb0, 0x03, 0x00], **dict(flags=Flags(0b00000001)))
-    assert cpu.program_counter ==  0x03 + 0x8000
+    cpu.load_and_run([0xb0, 0x03, 0x00], **dict(status=[Flags.CARRY]))
+                                # branch + pc + (len(prog) - 1)
+    assert cpu.program_counter ==  0x03 + 0x8000 + 0x02
 
 def test_0xf0_beq():
     cpu = CPU()
 
     # BEQ $03
     # BRK
-    cpu.load_and_run([0xf0, 0x03, 0x00], **dict(flags=Flags(0b00000010)))
-    assert cpu.program_counter == 0x03 + 0x8000
+    cpu.load_and_run([0xf0, 0x03, 0x00], **dict(status=[Flags.ZERO]))
+                                # branch + pc + (len(prog) - 1)
+    assert cpu.program_counter ==  0x03 + 0x8000 + 0x02
 
 def test_0xd0_bne():
     cpu = CPU()
 
     # BNE $03
     # BRK
-    cpu.load_and_run([0xd0, 0x03, 0x00], **dict(flags=Flags(0b00000001)))
-    assert cpu.program_counter == 0x03 + 0x8000
+    cpu.load_and_run([0xd0, 0x03, 0x00])
+                                # branch + pc + (len(prog) - 1)
+    assert cpu.program_counter ==  0x03 + 0x8000 + 0x02
 
+def test_0x10_bpl():
+    cpu = CPU()
+
+    # BPL $03
+    # BRK
+    cpu.load_and_run([0x10, 0x03, 0x00])
+                                # branch + pc + (len(prog) - 1)
+    assert cpu.program_counter ==  0x03 + 0x8000 + 0x02
+
+def test_0x30_bmi():
+    cpu = CPU()
+
+    # BMI $03
+    # BRK
+    cpu.load_and_run([0x30, 0x03, 0x00], **dict(status=[Flags.NEGATIVE]))
+                                # branch + pc + (len(prog) - 1)
+    assert cpu.program_counter ==  0x03 + 0x8000 + 0x02
+
+def test_0x50_bvc():
+    cpu = CPU()
+
+    # BVC $03
+    # BRK
+    cpu.load_and_run([0x50, 0x03, 0x00])
+                                # branch + pc + (len(prog) - 1)
+    assert cpu.program_counter ==  0x03 + 0x8000 + 0x02
+
+def test_0x70_bvs():
+    cpu = CPU()
+
+    # BVS $03
+    # BRK
+    cpu.load_and_run([0x70, 0x03, 0x00], **dict(status=[Flags.OVERFLOW]))
+                                # branch + pc + (len(prog) - 1)
+    assert cpu.program_counter ==  0x03 + 0x8000 + 0x02
+
+
+def test_0xc9_cmp_immediate():
+    cpu = CPU()
+
+    # LDA #$05
+    # CMP #$05
+    # BRK
+    cpu.load_and_run([0xa9, 0x05, 0xc9, 0x05, 0x00])
+    assert cpu.get_flag(Flags.ZERO)
+
+def test_0xc5_cmp_zero_page():
+    cpu = CPU()
+    cpu.mem_write(0x10, 0x05)
+
+    # LDA $05
+    # CMP $10
+    # BRK
+    cpu.load_and_run([0xa9, 0x05, 0xc5, 0x10, 0x00])
+    assert cpu.get_flag(Flags.ZERO)
+
+def test_0xd5_cmp_zero_page_x():
+    cpu = CPU()
+    cpu.mem_write(0x20, 0x05)
+
+    # LDA $05
+    # CMP $20,X
+    # BRK
+    cpu.load_and_run([0xa9, 0x05, 0xd5, 0x10, 0x00], **{"register_x": 0x10})
+    assert cpu.get_flag(Flags.ZERO)
+
+def test_0xcd_cmp_absolute():
+    cpu = CPU()
+    cpu.mem_write_u16(0x10, 0x05)
+
+    # LDA $05
+    # CMP $10
+    # BRK
+    cpu.load_and_run([0xa9, 0x05, 0xcd, 0x10, 0x00])
+    assert cpu.get_flag(Flags.ZERO)
+
+def test_0xdd_cmp_absolute_x():
+    cpu = CPU()
+    cpu.mem_write_u16(0x10, 0x05)
+
+    # LDA $05
+    # CMP $10,X
+    # BRK
+    cpu.load_and_run([0xa9, 0x05, 0xdd, 0x00], **{"register_x": 0x10})
+    assert cpu.get_flag(Flags.ZERO)
+
+def test_0xd9_cmp_absolute_y():
+    cpu = CPU()
+    cpu.mem_write_u16(0x10, 0x05)
+
+    # LDA $05
+    # CMP $10,Y
+    # BRK
+    cpu.load_and_run([0xa9, 0x05, 0xd9, 0x00], **{"register_y": 0x10})
+    assert cpu.get_flag(Flags.ZERO)
+
+def test_0xc1_cmp_indirect_x():
+    cpu = CPU()
+    cpu.mem_write(0x20, 0x20)
+    cpu.mem_write(0x21, 0x30)
+    cpu.mem_write(0x3020, 0x05)
+
+    # LDA $05
+    # CMP ($20,X)
+    # BRK
+    cpu.load_and_run([0xa9, 0x05, 0xc1, 0x10], **{"register_x": 0x10})
+    assert cpu.get_flag(Flags.ZERO)
+
+def test_0xd1_cmp_indirect_y():
+    cpu = CPU()
+    cpu.mem_write(0x10, 0x20)
+    cpu.mem_write(0x11, 0x30)
+    cpu.mem_write(0x3021, 0x05)
+
+    # LDA $05
+    # CMP ($10),Y
+    # BRK
+    cpu.load_and_run([0xa9, 0x05, 0xd1, 0x10], **{"register_y": 0x01})
+    assert cpu.get_flag(Flags.ZERO)
+
+def test_0xe0_cpx_immediate():
+    cpu = CPU()
+
+    # LDX #$05
+    # CPX #$05
+    # BRK
+    cpu.load_and_run([0xa2, 0x05, 0xe0, 0x05, 0x00])
+    assert cpu.get_flag(Flags.ZERO)
+
+def test_0xe4_cpx_zero_page():
+    cpu = CPU()
+    cpu.mem_write(0x10, 0x05)
+
+    # LDX $05
+    # CPX $10
+    # BRK
+    cpu.load_and_run([0xa2, 0x05, 0xe4, 0x10, 0x00])
+    assert cpu.get_flag(Flags.ZERO)
+
+def test_0xec_cpx_absolute():
+    cpu = CPU()
+    cpu.mem_write_u16(0x10, 0x05)
+
+    # LDX $05
+    # CPX $10
+    # BRK
+    cpu.load_and_run([0xa2, 0x05, 0xec, 0x10, 0x00])
+    assert cpu.get_flag(Flags.ZERO)
+
+def test_0x45_eor_zero_page():
+    cpu = CPU()
+    cpu.mem_write(0x10, 0b00000001)
+
+    # LDA $05
+    # EOR $10
+    # BRK
+    cpu.load_and_run([0xa9, 0b0001001, 0x45, 0x10, 0x00])
+    assert cpu.register_a == 0b00001000
+
+def test_0x46_lsr_zero_page():
+    cpu = CPU()
+    cpu.mem_write(0x10, 0b00000010)
+
+    # LSR $10
+    # BRK
+    cpu.load_and_run([0x46, 0x10, 0x00])
+    assert cpu.mem_read(0x10) == 0b00000001

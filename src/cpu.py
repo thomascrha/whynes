@@ -1,6 +1,7 @@
-from typing import Any, Dict, List, Union
+from types import FunctionType
+from typing import Any, Dict, List, Union, Optional
 from copy import copy
-from constants import U16, U8, Flags, AddressingMode, MEMORY_SIZE
+from constants import Flags, AddressingMode, MEMORY_SIZE
 from opcodes import Opcode
 import sys
 
@@ -15,19 +16,47 @@ class CPU:
     status: Flags
     program_counter: int
     memory: List[int]
+    stack_pointer: int
 
     opcodes: Dict[int, Opcode]
 
-    def __init__(self):
+    STACK = 0x0100
+    PROGRAM_OFFSET = 0x8000
+
+    def __init__(self, callback: Optional[FunctionType] = None, **kwargs: Dict[str, Union[int, List[Flags]]]):
         self.register_x = 0 # 8 bits
         self.register_a = 0 # 8 bits
-        self.status = Flags(0b0000000) # 8 bits
+        self.status = Flags(0b1000100) # 8 bits
 
         self.program_counter = 0x10
+
+        self.stack_pointer = 0xfd
 
         self.memory = [0] * MEMORY_SIZE
 
         self.opcodes = Opcode.load_opcodes()
+
+        self.callback = callback
+
+        self.load_kwargs(**kwargs)
+
+
+    def load_kwargs(self, **kwargs: Dict[str, Union[int, List[Flags]]]) -> None:
+        """Load the kwargs into the CPU object - mainly used for testing purposes
+
+        Args:
+            **kwargs (Dict[str, Union[int, List[Flags]]]): The kwargs to load into the CPU object
+
+        Returns:
+            None
+        """
+        # override the above attributes if they are passed in the kwargs
+        for key, value in kwargs.items():
+            if key == "status" and isinstance(value, list):
+                for flag in value:
+                    self.set_flag(flag)
+            else:
+                setattr(self, key, value)
 
     # Memory
     def mem_read(self, addr: int) -> int:
@@ -67,6 +96,26 @@ class CPU:
         addr = (base + offset) & 0xFFFF
 
         return addr
+
+    def stack_pop(self) -> int:
+        self.stack_pointer = (self.stack_pointer + 1) & 0xFFFF
+        return self.mem_read(self.STACK + self.stack_pointer)
+
+    def stack_push(self, data: int) -> None:
+        self.mem_write(self.STACK + self.stack_pointer, data)
+        self.stack_pointer = (self.stack_pointer - 1) & 0xFFFF
+
+    def stack_push_u16(self, data: int) -> None:
+        # i don't think the wrap is required but im not 100%
+        # self.stack_push((data >> 8) & 0xFF)
+        self.stack_push(data >> 8)
+        self.stack_push(data & 0xFF)
+
+    def stack_pop_u16(self) -> int:
+        low = self.stack_pop()
+        hi = self.stack_pop()
+
+        return hi << 8 | low
 
     # Addressing
     def get_operand_address(self, mode: AddressingMode) -> Any:
@@ -124,28 +173,31 @@ class CPU:
                 return None
 
 
-    def load_and_run(self, program: List[int], **kwargs: Dict[str, Union[int, Flags]]) -> None:
+    def load_and_run(self, program: List[int], **kwargs: Dict[str, Union[int, List[Flags]]]) -> None:
         self.load(program)
         self.reset(**kwargs)
         self.run()
 
     def load(self, program: List[int]):
-        self.memory[0x8000:(0x8000 + len(program))] = program
-        self.mem_write_u16(0xFFFC, 0x8000)
+        self.memory[self.PROGRAM_OFFSET:(self.PROGRAM_OFFSET + len(program))] = program
+        self.mem_write_u16(0xFFFC, self.PROGRAM_OFFSET)
 
-    def reset(self, **kwargs: Dict[str, int]) -> None:
+    def reset(self, **kwargs: Dict[str, Union[int, List[Flags]]]) -> None:
         self.register_a = 0
         self.register_y = 0
         self.register_x = 0
         self.status = Flags(0b0000000)
+        self.stack_pointer = 0xFD
         self.program_counter = self.mem_read_u16(0xFFFC)
 
-        # override the above attributes if they are passed in the kwargs
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+        self.load_kwargs(**kwargs)
 
-    def wrapping_add(self, value: int, increment: int = 1, mask: int = 0xFF):
-        return (value + increment) & mask
+    def update_negative_flag(self, result: int):
+        # set Negative flag if a's 7th bit is set
+        if result & 0b10000000 != 0:
+            self.set_flag(Flags.NEGATIVE)
+        else:
+            self.clear_flag(Flags.NEGATIVE)
 
     def update_zero_and_negative_flags(self, result: int):
         # Set zero flag if a is 0
@@ -154,11 +206,7 @@ class CPU:
         else:
             self.clear_flag(Flags.ZERO)
 
-        # set Negative flag if a's 7th bit is set
-        if result & 0b10000000 != 0:
-            self.set_flag(Flags.NEGATIVE)
-        else:
-            self.clear_flag(Flags.NEGATIVE)
+        self.update_negative_flag(result)
 
     def run(self) -> Any:
         while True:
@@ -171,15 +219,11 @@ class CPU:
                 logger.info("fuck")
                 sys.exit(-1)
 
+            if self.callback:
+                self.callback()
+
+            # Opcodematch opcode.code:
             match opcode.code:
-                # LDA
-                case 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1:
-                    self.lda(opcode.mode)
-
-                # STA
-                case 0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91:
-                    self.sta(opcode.mode);
-
                 # ADC
                 case 0x69 | 0x65 | 0x75 | 0x6d | 0x7d | 0x79 | 0x61 | 0x71:
                     self.adc(opcode.mode)
@@ -191,10 +235,6 @@ class CPU:
                 # ASL
                 case 0x0a | 0x06 | 0x16 | 0x0e | 0x1e:
                     self.asl(opcode.mode)
-
-                # BIT
-                case 0x24 | 0x2c:
-                    self.bit(opcode.mode)
 
                 # BCC
                 case 0x90:
@@ -211,20 +251,28 @@ class CPU:
                     if self.get_flag(Flags.ZERO):
                         self.branch()
 
-                # BNE
-                case 0xd0:
-                    if not self.get_flag(Flags.ZERO):
-                        self.branch()
+                # BIT
+                case 0x24 | 0x2c:
+                    self.bit(opcode.mode)
 
                 # BMI
                 case 0x30:
                     if self.get_flag(Flags.NEGATIVE):
                         self.branch()
 
+                # BNE
+                case 0xd0:
+                    if not self.get_flag(Flags.ZERO):
+                        self.branch()
+
                 # BPL
                 case 0x10:
                     if not self.get_flag(Flags.NEGATIVE):
                         self.branch()
+
+                # BREAK
+                case 0x00:
+                    return False
 
                 # BVC
                 case 0x50:
@@ -240,17 +288,13 @@ class CPU:
                 case 0x18:
                     self.clear_flag(Flags.CARRY)
 
-                # SEC
-                case 0x38:
-                    self.set_flag(Flags.CARRY)
+                # CLD
+                case 0xd8:
+                    self.clear_flag(Flags.DECIMAL)
 
                 # CLI
                 case 0x58:
                     self.clear_flag(Flags.INTERRUPT_DISABLE)
-
-                # SEI
-                case 0x78:
-                    self.set_flag(Flags.INTERRUPT_DISABLE)
 
                 # CLV
                 case 0xb8:
@@ -278,18 +322,18 @@ class CPU:
                 case 0xc6 | 0xd6 | 0xce | 0xde:
                     addr = self.get_operand_address(opcode.mode)
                     value = self.mem_read(addr)
-                    value -= 1
+                    value = (value - 1) & 0xFF
                     self.update_zero_and_negative_flags(value)
                     self.mem_write(addr, value)
 
                 # DEX
                 case 0xca:
-                    self.register_x -= 1
+                    self.register_x = (self.register_x - 1) & 0xFF
                     self.update_zero_and_negative_flags(self.register_x)
 
                 # DEY
                 case 0x88:
-                    self.register_y -= 1
+                    self.register_y = (self.register_y - 1) & 0xFF
                     self.update_zero_and_negative_flags(self.register_y)
 
                 # EOR
@@ -303,51 +347,165 @@ class CPU:
                 case 0xe6 | 0xf6 | 0xee | 0xfe:
                     addr = self.get_operand_address(opcode.mode)
                     value = self.mem_read(addr)
-                    value += 1
-                    self.update_zero_and_negative_flags(value)
+                    value = (value + 1) & 0xFF
                     self.mem_write(addr, value)
-
-                # INY
-                case 0xc8:
-                    self.register_y += 1
-                    self.update_zero_and_negative_flags(self.register_y)
-
-                # JMP
-                case 0x4c | 0x6c:
-                    self.jump(opcode.mode)
-
-                # JSR
-                case 0x20:
-                    self.mem_write_u16(self.program_counter, self.program_counter - 1)
-                    self.program_counter = self.mem_read_u16(self.program_counter)
-
-                # SDC
-                case 0xE9 | 0xe5 | 0xf5 | 0xed | 0xfd | 0xf9 | 0xe1 | 0xf1:
-                    self.sbc(opcode.mode)
-
-                # TAX
-                case 0xaa:
-                    self.tax()
+                    self.update_zero_and_negative_flags(value)
 
                 # INX
                 case 0xe8:
                     self.inx()
 
+                # INY
+                case 0xc8:
+                    self.register_y = (self.register_y + 1) & 0xFF
+                    self.update_zero_and_negative_flags(self.register_y)
+
+                # JMP ABSOLUTE
+                case 0x4c:
+                    mem_address = self.mem_read_u16(self.program_counter)
+                    self.program_counter = mem_address
+
+                # JMP INDIRECT
+                case 0x6c:
+                    mem_address = self.mem_read_u16(self.program_counter)
+                    if mem_address & 0x00FF == 0x00FF:
+                        lo = self.mem_read(mem_address)
+                        hi = self.mem_read(mem_address & 0xFF00)
+                        indirect_ref = (hi << 8) | lo
+                    else:
+                        indirect_ref = self.mem_read_u16(mem_address)
+
+                    self.program_counter = indirect_ref
+
+                # JSR
+                case 0x20:
+                    self.stack_push_u16(self.program_counter + 2 - 1)
+                    self.mem_write_u16(self.program_counter, self.program_counter - 1)
+                    self.program_counter = self.mem_read_u16(self.program_counter)
+
                 # LDA
                 case 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1:
-                    self.lda(opcode.mode)
+                    addr = self.get_operand_address(opcode.mode)
+                    value = self.mem_read(addr)
+                    self.register_a = value
+                    self.update_zero_and_negative_flags(self.register_a)
 
                 # LDX
                 case 0xa2 | 0xa6 | 0xb6 | 0xae | 0xbe:
-                    self.ldx(opcode.mode)
+                    self.register_x = self.mem_read(self.get_operand_address(opcode.mode))
+                    self.update_zero_and_negative_flags(self.register_x)
 
-                # JMP
-                case 0x4c | 0x6c:
-                    self.jump(opcode.mode)
+                # LDY
+                case 0xa0 | 0xa4 | 0xb4 | 0xac | 0xbc:
+                    self.register_y = self.mem_read(self.get_operand_address(opcode.mode))
+                    self.update_zero_and_negative_flags(self.register_y)
 
-                # BREAK
-                case 0x00:
-                    return False
+                # LSR
+                case 0x4a | 0x46 | 0x56 | 0x4e | 0x5e:
+                    self.lsr(opcode.mode)
+
+                # NOP
+                case 0xea:
+                    pass
+
+                # ORA
+                case 0x09 | 0x05 | 0x15 | 0x0d | 0x1d | 0x19 | 0x01 | 0x11:
+                    addr = self.get_operand_address(opcode.mode)
+                    value = self.mem_read(addr)
+                    self.register_a |= value
+                    self.update_zero_and_negative_flags(self.register_a)
+
+                # PHA
+                case 0x48:
+                    self.stack_push(self.register_a)
+
+                # PHP
+                case 0x08:
+                    # <//http://wiki.nesdev.com/w/index.php/CPU_status_flag_behavior
+                    flags = copy(self.status)
+                    flags = flags | Flags.BREAK | Flags.UNUSED
+                    self.stack_push(flags)
+
+                # PLA
+                case 0x68:
+                    self.register_a = self.stack_pop()
+
+                # PLP
+                case 0x28:
+                    self.status = self.stack_pop()
+                    self.clear_flag(Flags.BREAK)
+                    self.set_flag(Flags.UNUSED)
+
+                # ROL
+                case 0x2a | 0x26 | 0x36 | 0x2e | 0x3e:
+                    self.rol(opcode.mode)
+
+                # ROR
+                case 0x6a | 0x66 | 0x76 | 0x6e | 0x7e:
+                    self.ror(opcode.mode)
+
+                # RTI
+                case 0x40:
+                    pass
+
+                # RTS
+                case 0x60:
+                    self.program_counter += 1
+                    self.program_counter = self.mem_read(0x100 + self.program_counter)
+
+                # SBC
+                case 0xe9 | 0xe5 | 0xf5 | 0xed | 0xfd | 0xf9 | 0xe1 | 0xf1:
+                    addr = self.get_operand_address(opcode.mode)
+                    value = self.mem_read(addr)
+                    self.add_to_register_a(((value ^ 0xFF) + 1) & 0xFF)
+
+                # SEC
+                case 0x38:
+                    self.set_flag(Flags.CARRY)
+
+                # SED
+                case 0xf8:
+                    self.set_flag(Flags.DECIMAL)
+
+                # SEI
+                case 0x78:
+                    self.set_flag(Flags.INTERRUPT_DISABLE)
+
+                # STA
+                case 0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91:
+                    self.mem_write(self.get_operand_address(opcode.mode), self.register_a)
+
+                # STX
+                case 0x86 | 0x96 | 0x8e:
+                    self.mem_write(self.get_operand_address(opcode.mode), self.register_x)
+
+                # STY
+                case 0x84 | 0x94 | 0x8c:
+                    self.mem_write(self.get_operand_address(opcode.mode), self.register_y)
+
+                # TAX
+                case 0xaa:
+                    self.tax()
+
+                # TAY
+                case 0xa8:
+                    self.tay()
+
+                # TSX
+                case 0xba:
+                    self.tsx()
+
+                # TXA
+                case 0x8a:
+                    self.txa()
+
+                # TXS
+                case 0x9a:
+                    self.txs()
+
+                # TYA
+                case 0x98:
+                    self.tya()
 
                 case _:
                     logger.info("fuck")
@@ -356,7 +514,6 @@ class CPU:
             if program_counter_state == self.program_counter:
                 self.program_counter += (opcode.length - 1)
 
-    # Opcodes
     def adc(self, mode: AddressingMode) -> None:
         addr = self.get_operand_address(mode)
         value = self.mem_read(addr)
@@ -382,13 +539,12 @@ class CPU:
         else:
             self.clear_flag(Flags.CARRY)
 
-        data = value << 1
-
-        self.update_zero_and_negative_flags(data)
+        data = (value << 1) | self.get_flag(Flags.CARRY)
 
         if mode == AddressingMode.ACCUMULATOR:
             self.register_a = data
         else:
+            self.update_negative_flag(data)
             self.mem_write(addr, data)
 
     def sbc(self, mode: AddressingMode) -> None:
@@ -472,17 +628,31 @@ class CPU:
 
         self.update_zero_and_negative_flags(register - value)
 
+    def lsr(self, mode: AddressingMode):
+        addr = self.get_operand_address(mode)
+        if mode != AddressingMode.ACCUMULATOR:
+            value = self.mem_read(addr)
+        else:
+            value = copy(self.register_a)
+
+        if value & 1 == 1:
+            self.set_flag(Flags.CARRY)
+        else:
+            self.clear_flag(Flags.CARRY)
+
+        data = value >> 1
+
+        self.update_zero_and_negative_flags(data)
+
+        if mode == AddressingMode.ACCUMULATOR:
+            self.register_a = data
+        else:
+            self.mem_write(addr, data)
+
     def lda(self, mode: AddressingMode):
         addr = self.get_operand_address(mode)
-        value = self.mem_read(addr)
-        self.register_a = value
+        self.register_a = self.mem_read(addr)
         self.update_zero_and_negative_flags(self.register_a)
-
-    def ldx(self, mode: AddressingMode):
-        addr = self.get_operand_address(mode)
-        value = self.mem_read(addr)
-        self.register_x = value
-        self.update_zero_and_negative_flags(self.register_x)
 
     def sta(self, mode: AddressingMode):
         addr = self.get_operand_address(mode)
@@ -496,4 +666,68 @@ class CPU:
     def tax(self):
         self.register_x = self.register_a
         self.update_zero_and_negative_flags(self.register_x)
+
+    def tay(self):
+        self.register_y = self.register_a
+        self.update_zero_and_negative_flags(self.register_y)
+
+    def txa(self):
+        self.register_a = self.register_x
+        self.update_zero_and_negative_flags(self.register_a)
+
+    def tya(self):
+        self.register_a = self.register_y
+        self.update_zero_and_negative_flags(self.register_a)
+
+    def txs(self):
+        self.stack_pointer = self.register_x
+
+    def tsx(self):
+        self.register_x = self.stack_pointer
+        self.update_zero_and_negative_flags(self.register_x)
+
+    def rol(self, mode: AddressingMode):
+        addr = self.get_operand_address(mode)
+        if mode != AddressingMode.ACCUMULATOR:
+            value = self.mem_read(addr)
+        else:
+            value = copy(self.register_a)
+
+        carry = self.get_flag(Flags.CARRY)
+        self.clear_flag(Flags.CARRY)
+
+        data = (value << 1) | carry
+
+        if value >> 7 == 1:
+            self.set_flag(Flags.CARRY)
+
+        if mode == AddressingMode.ACCUMULATOR:
+            self.register_a = data
+        else:
+            self.update_negative_flag(data)
+            self.mem_write(addr, data)
+
+    def ror(self, mode: AddressingMode) -> None:
+        addr = self.get_operand_address(mode)
+        if mode != AddressingMode.ACCUMULATOR:
+            value = self.mem_read(addr)
+        else:
+            value = copy(self.register_a)
+
+        old_carry = self.get_flag(Flags.CARRY)
+
+        if value & 1 == 1:
+            self.set_flag(Flags.CARRY)
+        else:
+            self.clear_flag(Flags.CARRY)
+
+        data = (value >> 1)
+        if old_carry:
+            data |= 0b10000000
+
+        if mode == AddressingMode.ACCUMULATOR:
+            self.register_a = data
+        else:
+            self.mem_write(addr, data)
+            self.update_negative_flag(data)
 
