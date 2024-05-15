@@ -1,7 +1,7 @@
 import enum
 
-HEX_16 = 0xFFFF
-HEX_8 = 0xFF
+U16 = 0xFFFF
+U8 = 0xFF
 KB = 1024
 
 MEMORY_SIZE = 0xFFFF
@@ -10,6 +10,44 @@ PROGRAM_ROM_END = 0xFFFF
 CHARACTER_ROM_START = 0x0000
 CHARACTER_ROM_END = 0x1FFF
 
+class Flags(enum.IntFlag):
+    """
+    7  bit  0
+    ---- ----
+    NV1B DIZC
+    |||| ||||
+    |||| |||+- Carry
+    |||| ||+-- Zero
+    |||| |+--- Interrupt Disable
+    |||| +---- Decimal
+    |||+------ (No CPU effect; see: the B flag)
+    ||+------- (No CPU effect; always pushed as 1)
+    |+-------- Overflow
+    +--------- Negative
+    """
+    CARRY = 1
+    ZERO = 2
+    INTERRUPT_DISABLE = 4
+    DECIMAL = 8
+    BREAK = 16
+    UNUSED = 32
+    OVERFLOW = 64
+    NEGATIVE = 128
+
+class AddressingMode(enum.Enum):
+    IMMEDIATE = "IMMEDIATE"
+    ZERO_PAGE = "ZERO_PAGE"
+    X_INDEXED_ZERO_PAGE = "X_INDEXED_ZERO_PAGE"
+    Y_INDEXED_ZERO_PAGE = "Y_INDEXED_ZERO_PAGE"
+    ABSOLUTE = "ABSOLUTE"
+    X_INDEXED_ABSOLUTE = "X_INDEXED_ABSOLUTE"
+    Y_INDEXED_ABSOLUTE = "Y_INDEXED_ABSOLUTE"
+    X_INDEXED_ZERO_PAGE_INDIRECT = "X_INDEXED_ZERO_PAGE_INDIRECT"
+    ZERO_PAGE_INDIRECT_Y_INDEXED = "ZERO_PAGE_INDIRECT_Y_INDEXED"
+    RELATIVE = "RELATIVE"
+    ACCUMULATOR = "ACCUMULATOR"
+    IMPLIED = "IMPLIED"
+    ABSOLUTE_INDIRECT = "ABSOLUTE_INDIRECT"
 
 class CartridgeFormat(str, enum.Enum):
     ines = "iNES1.0"
