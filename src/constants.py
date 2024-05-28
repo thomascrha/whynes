@@ -1,4 +1,4 @@
-import enum
+from enum import STRICT, Enum, Flag, IntFlag, auto
 
 U16 = 0xFFFF
 U8 = 0xFF
@@ -10,7 +10,8 @@ PROGRAM_ROM_END = 0xFFFF
 CHARACTER_ROM_START = 0x0000
 CHARACTER_ROM_END = 0x1FFF
 
-class Flags(enum.IntFlag):
+
+class Flags(IntFlag, boundary=STRICT):
     """
     7  bit  0
     ---- ----
@@ -25,16 +26,18 @@ class Flags(enum.IntFlag):
     |+-------- Overflow
     +--------- Negative
     """
-    CARRY = 1
-    ZERO = 2
-    INTERRUPT_DISABLE = 4
-    DECIMAL = 8
-    BREAK = 16
-    UNUSED = 32
-    OVERFLOW = 64
-    NEGATIVE = 128
 
-class AddressingMode(enum.Enum):
+    CARRY = auto()
+    ZERO = auto()
+    INTERRUPT_DISABLE = auto()
+    DECIMAL = auto()
+    BREAK = auto()
+    UNUSED = auto()
+    OVERFLOW = auto()
+    NEGATIVE = auto()
+
+
+class AddressingMode(Enum):
     IMMEDIATE = "IMMEDIATE"
     ZERO_PAGE = "ZERO_PAGE"
     X_INDEXED_ZERO_PAGE = "X_INDEXED_ZERO_PAGE"
@@ -49,14 +52,15 @@ class AddressingMode(enum.Enum):
     IMPLIED = "IMPLIED"
     ABSOLUTE_INDIRECT = "ABSOLUTE_INDIRECT"
 
-class CartridgeFormat(str, enum.Enum):
+
+class CartridgeFormat(str, Enum):
     ines = "iNES1.0"
     nes20 = "NES2.0"
     ines07 = "iNES0.7"
     archaicines = "ArchaiciNES"
 
 
-class HeaderFlags6(enum.Flag):
+class HeaderFlags6(Flag):
     """Flags 6
 
     76543210
@@ -82,7 +86,7 @@ class HeaderFlags6(enum.Flag):
     LOWER_NYBBLE_MAPPER_NO_3 = 128
 
 
-class HeaderFlags7(enum.Flag):
+class HeaderFlags7(Flag):
     """Flags 7
 
     76543210
@@ -96,7 +100,7 @@ class HeaderFlags7(enum.Flag):
     """
 
 
-class HeaderFlags9iNES(enum.Flag):
+class HeaderFlags9iNES(Flag):
     """Flags 9
 
     76543210

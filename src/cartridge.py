@@ -1,8 +1,8 @@
 import sys
 from logging import Logger
+from pydantic import FilePath
 from constants import HEX_8, HEX_16, KB, CartridgeFormat, HeaderFlags6, HeaderFlags9iNES
 from logger import get_logger
-from pydantic import FilePath
 
 
 class Cartridge:
