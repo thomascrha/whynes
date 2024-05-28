@@ -134,31 +134,17 @@ class CPU:
                 return self.read_with_offset(self.register_y, u8=False)
 
             case AddressingMode.X_INDEXED_ZERO_PAGE_INDIRECT:
-                # base = self.memory.read(self.program_counter)
-                # ptr = (base + self.register_x) & 0xFF
-                # low = self.memory.read(ptr)
-                # hi = self.memory.read((ptr + 1) & 0xFF )
-                # return hi << 8 | low
                 i = (self.memory.read(self.program_counter) + self.register_x) & 0xFF
                 address = ((self.memory.read((i + 1) & 0xFF) << 8) + self.memory.read(i)) & 0xFFFF
                 return address
 
             case AddressingMode.ZERO_PAGE_INDIRECT_Y_INDEXED:
-                # base = self.memory.read(self.program_counter)
-                # low = self.memory.read(base)
-                # hi = self.memory.read((base + 1) & 0xFF)
-                # deref_base = hi << 8 | low
-                # deref = (deref_base + self.register_y) & 0xFFFF
-                # return deref
                 i = self.memory.read(self.program_counter)
                 address = (self.memory.read(i) + (self.memory.read((i + 1) & 0xFF) << 8) + self.register_y) & 0xFFFF
 
                 return address
 
-            # Only used by branch instructions
             case AddressingMode.RELATIVE:
-                # handled in the branch function
-                # used for dissasembly
                 return self.memory.read(self.program_counter)
 
             case AddressingMode.ACCUMULATOR:
@@ -167,9 +153,7 @@ class CPU:
             case AddressingMode.IMPLIED:
                 return None
 
-            # Only used by JMP
             case AddressingMode.ABSOLUTE_INDIRECT:
-                # handled in the JMP function
                 return None
 
     def pre_load(self, program: List[int], **kwargs: Dict[str, Union[int, List[Flags]]]) -> None:
