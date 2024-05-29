@@ -170,7 +170,7 @@ class CPU:
         self.run()
 
     def load(self, program: List[int]):
-        self.memory.memory[self.program_offset : (self.program_offset + len(program))] = program
+        self.memory[self.program_offset : (self.program_offset + len(program))] = program
         self.memory.write_u16(0xFFFC, self.program_offset)
 
     def reset(self, **kwargs: Dict[str, Union[int, List[Flags]]]) -> None:

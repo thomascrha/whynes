@@ -1,8 +1,24 @@
+import logging
 import random
-from typing import List
+import threading
+import time
+from typing import Callable, List, Optional, Tuple
+import numpy as np
+import pygame
+import pygame.surfarray as surfarray
+from pynput.keyboard import Key, Listener
 from constants import Flags
 from cpu import CPU
 from logger import get_logger
+from memory import Memory
+
+
+def threaded(fn):
+    def wrapper(*args, **kwargs):
+        thread = threading.Thread(target=fn, args=args, kwargs=kwargs)
+        thread.start()
+
+    return wrapper
 
 
 class SnakeGame:
@@ -64,20 +80,59 @@ class SnakeGame:
     def __init__(self):
         self.cpu = CPU(callback=self.callback, program_offset=0x0600)
         self.logger = get_logger(self.__class__.__name__)
+        self.last_key_pressed = None
 
     def run(self) -> None:
+        self.read_input()
+        pygame.init()
+        self.display = pygame.display.set_mode((320, 320))
         self.cpu.load_and_run(self.CODE)
         # self.cpu.load_and_deassemble(self.CODE)
+
+    @threaded
+    def read_input(self) -> Optional[int]:
+        def on_press(key):
+            self.logger.info(key)
+            if key == Key.up:
+                self.last_key_pressed = 0x77
+            elif key == Key.down:
+                self.last_key_pressed = 0x73
+            elif key == Key.left:
+                self.last_key_pressed = 0x61
+            elif key == Key.right:
+                self.last_key_pressed = 0x64
+
+        with Listener(on_press=on_press) as listener:
+            listener.join()
 
     def callback(self) -> None:
         self.logger.info(f"Opcode: {getattr(self.cpu.opcode, 'mnemonic', None)} PC: {self.cpu.program_counter}, A: {self.cpu.register_a}, X: {self.cpu.register_x}, Y: {self.cpu.register_y}, SP: {self.cpu.stack_pointer}, Status: {Flags(int(self.cpu.status))}")
 
-        # TODO:
         # read user input and write it to mem[0xFF]
-        # update mem[0xFE] with new Random Number
-        # read mem mapped screen state
-        # render screen state
+        if self.last_key_pressed:
+            self.cpu.memory.write(0xff, self.last_key_pressed)
 
+        # display the character in the pygamewindow that was pressed picked up in last_key_pressed
+
+            font = pygame.font.Font(None, 36)
+            text = font.render(chr(self.last_key_pressed), True, (255, 255, 255))
+            #clear the screen
+            self.display.fill((0, 0, 0))
+
+            self.display.blit(text, (0, 0))
+
+
+        self.last_key_pressed = None
+        # update mem[0xFE] with new Random Number
+        self.cpu.memory.write(0xfe, random.randint(1, 16))
+        # read mem mapped screen state
+        # screen = np.array(*[np.array_split(self.cpu.memory[0x0200:0x0600], 32)]).astype(np.uint8)
+        # render screen state
+        # surf = pygame.surfarray.make_surface(screen)
+        # self.display.blit(surf, (0, 0))
+
+
+        pygame.display.update()
         # generate random number between 1-16 and store in memory location 0xfe
         self.cpu.memory.write(0xfe, random.randint(1, 16))
 

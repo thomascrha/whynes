@@ -1,18 +1,17 @@
-from typing import List
+from collections import UserList
 from constants import MEMORY_SIZE
 
 
-class Memory:
-    memory: List[int]
-
-    def __init__(self, size: int = MEMORY_SIZE):
-        self.memory = [0] * size
+class Memory(UserList):
+    def __init__(self, *args, **kwargs):
+        super(Memory, self).__init__(*args, **kwargs)
+        self.data = [0] * MEMORY_SIZE
 
     def read(self, addr: int) -> int:
-        return self.memory[addr]
+        return self.data[addr]
 
     def write(self, addr: int, data: int) -> None:
-        self.memory[addr] = data
+        self.data[addr] = data
 
     def read_u16(self, pos: int) -> int:
         low = self.read(pos)

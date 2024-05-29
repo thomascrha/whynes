@@ -14,17 +14,15 @@ classifiers = [
 ]
 
 dependencies = [
-    "pytest==8.2.0",
-    "debugpy==1.5.1"
+    "numpy",
+    "pygame",
+    "pynput",
 ]
 
 [project.optional-dependencies]
-test = [
-    "black",
-    "pre-commit",
-    "mypy",
+dev = [
     "pytest",
-    "pytest-cov",
+    "debugpy"
 ]
 
 [tool.isort]
