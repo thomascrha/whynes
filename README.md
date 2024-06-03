@@ -32,9 +32,10 @@ Then I can implement the same emulator in other languages and *bing bong boom* I
 I needed a way to confirm my implementation of the CPU was correct, so I found a [snake game](https://gist.github.com/wkjagt/9043907)
 written in 6502 assembly and given the instructions [here](https://bugzmanov.github.io/nes_ebook/chapter_3_4.html), I
 implemented a snake game using PyGame (SDL) and pyinput for controls and the CPU implementation.
-(currently not working which is why it was implemented)
 
 `python3 snake.py`
+
+<img src="https://github.com/thomascrha/whynes/blob/main/snake-boi.gif?raw=true" align="middle" width="250" height="250">
 
 ## Resources
 

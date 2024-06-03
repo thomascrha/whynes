@@ -21,6 +21,22 @@ def threaded(fn):
     return wrapper
 
 
+WIDTH = 32
+HEIGHT = 32
+SCREEN_SIZE = (WIDTH, HEIGHT)
+PIXEL_SIZE = 10
+COLORS = {
+    0: (0, 0, 0),  # Black
+    1: (255, 255, 255),  # White
+    2: (255, 0, 0),  # Red
+    3: (0, 255, 0),  # Green
+    4: (0, 0, 255),  # Blue
+    5: (255, 255, 0),  # Yellow
+    6: (255, 0, 255),  # Magenta
+    7: (0, 255, 255),  # Cyan
+}
+
+
 class SnakeGame:
     # fmt: off
     CODE: List[int] = [
@@ -85,9 +101,30 @@ class SnakeGame:
     def run(self) -> None:
         self.read_input()
         pygame.init()
-        self.display = pygame.display.set_mode((320, 320))
+        self.screen = pygame.display.set_mode((SCREEN_SIZE[0]*PIXEL_SIZE, SCREEN_SIZE[1]*PIXEL_SIZE))
         self.cpu.load_and_run(self.CODE)
         # self.cpu.load_and_deassemble(self.CODE)
+
+    def colour(self, byte: int) -> Tuple[int, int, int]:
+        match byte:
+            case 0:
+                return (0, 0, 0) # Black
+            case 1:
+                return (255, 255, 255) # White
+            case 2, 9:
+                return (128, 128, 128) # Gray
+            case 3, 10:
+                return (255, 0, 0) # Red
+            case 4, 11:
+                return (0, 255, 0) # Green
+            case 5, 12:
+                return (0, 0, 255) # Blue
+            case 6, 13:
+                return (255, 0, 255) # Magenta
+            case 7, 14:
+                return (255, 255, 0) # Yellow
+            case _:
+                return (0, 255, 255) # Cyan
 
     @threaded
     def read_input(self) -> Optional[int]:
@@ -106,33 +143,37 @@ class SnakeGame:
             listener.join()
 
     def callback(self) -> None:
-        self.logger.info(f"Opcode: {getattr(self.cpu.opcode, 'mnemonic', None)} PC: {self.cpu.program_counter}, A: {self.cpu.register_a}, X: {self.cpu.register_x}, Y: {self.cpu.register_y}, SP: {self.cpu.stack_pointer}, Status: {Flags(int(self.cpu.status))}")
+        # self.logger.info(f"Opcode: {getattr(self.cpu.opcode, 'mnemonic', None)} PC: {self.cpu.program_counter}, A: {self.cpu.register_a}, X: {self.cpu.register_x}, Y: {self.cpu.register_y}, SP: {self.cpu.stack_pointer}, Status: {Flags(int(self.cpu.status))}")
 
         # read user input and write it to mem[0xFF]
         if self.last_key_pressed:
             self.cpu.memory.write(0xff, self.last_key_pressed)
+            self.last_key_pressed = None
 
-        # display the character in the pygamewindow that was pressed picked up in last_key_pressed
-
-            font = pygame.font.Font(None, 36)
-            text = font.render(chr(self.last_key_pressed), True, (255, 255, 255))
-            #clear the screen
-            self.display.fill((0, 0, 0))
-
-            self.display.blit(text, (0, 0))
-
-
-        self.last_key_pressed = None
         # update mem[0xFE] with new Random Number
         self.cpu.memory.write(0xfe, random.randint(1, 16))
         # read mem mapped screen state
-        # screen = np.array(*[np.array_split(self.cpu.memory[0x0200:0x0600], 32)]).astype(np.uint8)
-        # render screen state
-        # surf = pygame.surfarray.make_surface(screen)
-        # self.display.blit(surf, (0, 0))
 
+             # Create a new surface
+        surface = pygame.Surface((WIDTH, HEIGHT))
 
+        # Create a pixel array from the surface
+        pixels = pygame.PixelArray(surface)
+
+        for i, colour in enumerate(self.cpu.memory.slice(0x0200, 0x0600)):
+            x = i % WIDTH
+            y = i // WIDTH
+            pixels[x, y] = self.colour(colour)
+
+        # Delete the pixel array to make the surface usable again
+        del pixels
+
+        # Scale the surface up
+        surface = pygame.transform.scale(surface, (WIDTH * PIXEL_SIZE, HEIGHT * PIXEL_SIZE))
+
+        self.screen.blit(surface, (0, 0))
         pygame.display.update()
+
         # generate random number between 1-16 and store in memory location 0xfe
         self.cpu.memory.write(0xfe, random.randint(1, 16))
 

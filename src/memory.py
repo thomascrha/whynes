@@ -24,3 +24,6 @@ class Memory(UserList):
         low = data & 0xFF
         self.write(pos, low)
         self.write(pos + 1, hi)
+
+    def slice(self, start: int, end: int) -> list:
+        return self.data[start:end]
