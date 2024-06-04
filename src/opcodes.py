@@ -36,7 +36,7 @@ class Opcode:
             # string = self.mnemonic.replace("nn", f"{(program_offset - self.opcode_params):0{2}X}")
             params = self.opcode_params
             if self.addressing_mode == AddressingMode.IMMEDIATE:
-                params = memory.mem_read(self.opcode_params)
+                params = memory.read(self.opcode_params)
             string = self.mnemonic.replace("nn", f"{(params):0{2}X}")
         elif self.length == 3:
             # string = self.mnemonic.replace("nnnn", f"{(program_offset - self.opcode_params):0{4}X}")
