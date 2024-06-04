@@ -106,9 +106,8 @@ class SnakeGame:
     def run(self) -> None:
         self.read_input()
         pygame.init()
-        self.screen = pygame.display.set_mode((SCREEN_SIZE[0]*PIXEL_SIZE, SCREEN_SIZE[1]*PIXEL_SIZE))
+        self.screen = pygame.display.set_mode((WIDTH*PIXEL_SIZE, HEIGHT*PIXEL_SIZE))
         self.cpu.load_and_run(self.CODE)
-        exit(0)
 
     def deassemble(self):
         self.cpu.load_and_deassemble(self.CODE)

@@ -475,9 +475,7 @@ class CPU:
 
                 # SBC
                 case 0xE9 | 0xE5 | 0xF5 | 0xED | 0xFD | 0xF9 | 0xE1 | 0xF1:
-                    addr = self.get_operand_address(self.opcode.addressing_mode)
-                    value = self.memory.read(addr)
-                    self.add_to_register_a(((value ^ 0xFF) + 1) & 0xFF)
+                    self.sbc(self.opcode.addressing_mode)
 
                 # SEC
                 case 0x38:
@@ -534,6 +532,11 @@ class CPU:
             if program_counter_state == self.program_counter:
                 self.program_counter += self.opcode.length - 1
 
+    def sbc(self, mode: AddressingMode) -> None:
+        addr = self.get_operand_address(mode)
+        value = self.memory.read(addr)
+        self.add_to_register_a((value ^ 0xFF) & 0xFF)
+
     def adc(self, mode: AddressingMode) -> None:
         addr = self.get_operand_address(mode)
         value = self.memory.read(addr)
@@ -566,12 +569,6 @@ class CPU:
         else:
             self.update_negative_flag(data)
             self.memory.write(addr, data)
-
-    def sbc(self, mode: AddressingMode) -> None:
-        addr = self.get_operand_address(mode)
-        value = self.memory.read(addr)
-        # After ADC is implemented, implementing SBC becomes trivial as A - B = A + (-B). And -B = !B + 1
-        self.add_to_register_a(((value ^ 0xFF) + 1) & 0xFF)
 
     def unsigned_to_signed(self, unsigned_value: int, bit_width: int) -> int:
         max_signed_value = 2**bit_width - 1
