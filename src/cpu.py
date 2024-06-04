@@ -293,7 +293,7 @@ class CPU:
 
                 # BREAK
                 case 0x00:
-                    return False
+                    exit(0)
 
                 # BVC
                 case 0x50:
@@ -529,7 +529,7 @@ class CPU:
 
                 case _:
                     logger.info("Not implemented")
-                    sys.exit(-1)
+                    exit(-1)
 
             if program_counter_state == self.program_counter:
                 self.program_counter += self.opcode.length - 1

@@ -28,7 +28,7 @@ def threaded(fn):
 WIDTH = 32
 HEIGHT = 32
 SCREEN_SIZE = (WIDTH, HEIGHT)
-PIXEL_SIZE = 10
+PIXEL_SIZE = 20
 COLORS = {
     0: (0, 0, 0),  # Black
     1: (255, 255, 255),  # White
@@ -108,6 +108,7 @@ class SnakeGame:
         pygame.init()
         self.screen = pygame.display.set_mode((SCREEN_SIZE[0]*PIXEL_SIZE, SCREEN_SIZE[1]*PIXEL_SIZE))
         self.cpu.load_and_run(self.CODE)
+        exit(0)
 
     def deassemble(self):
         self.cpu.load_and_deassemble(self.CODE)
