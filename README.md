@@ -7,7 +7,6 @@ __(pssst... it's not finished yet)__
 
 ## Why ?
 
-<img src="https://media.tenor.com/KA4TdkOcYT8AAAAM/jeff-goldblum.gif" width="70%">
 
 Why not. This is a project designed as an educational experiment so I can do two things:
 
@@ -33,9 +32,13 @@ I needed a way to confirm my implementation of the CPU was correct, so I found a
 written in 6502 assembly and given the instructions [here](https://bugzmanov.github.io/nes_ebook/chapter_3_4.html), I
 implemented a snake game using PyGame (SDL) and pyinput for controls and the CPU implementation.
 
-`python3 snake.py`
+```console
+pip install .[dev]  # install all the dependencies including dev P.S. on zsh surround '.[dev]' quotes
+python3 src/snake.py
 
-<img src="https://github.com/thomascrha/whynes/blob/main/snake-boi.gif?raw=true" align="middle" width="250" height="250">
+```
+
+<img src="https://github.com/thomascrha/whynes/blob/main/snake-boi.gif?raw=true" align="centre">
 
 ## Resources
 
@@ -46,3 +49,6 @@ implemented a snake game using PyGame (SDL) and pyinput for controls and the CPU
 [Instruction Set Manual](https://www.pagetable.com/c64ref/6502/?tab=2)
 
 [Writing NES Emulator in Rust](https://bugzmanov.github.io/nes_ebook/chapter_1.html)
+
+## Related Memes
+<img src="https://media.tenor.com/KA4TdkOcYT8AAAAM/jeff-goldblum.gif" width="70%">

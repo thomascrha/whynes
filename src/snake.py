@@ -1,16 +1,20 @@
-import logging
+"""
+Small game of snake implemented in 6502 assembly - https://gist.github.com/wkjagt/9043907
+
+The game is implemented in 6502 assembly and runs on a virtual 6502 CPU implemented in Python.
+
+By default the game will run in a pygame window, but you can also deassemble the code by passing the -d flag.
+"""
+import argparse
 import random
 import threading
-import time
-from typing import Callable, List, Optional, Tuple
+from typing import List, Optional, Tuple
 import numpy as np
 import pygame
-import pygame.surfarray as surfarray
 from pynput.keyboard import Key, Listener
 from constants import Flags
 from cpu import CPU
 from logger import get_logger
-from memory import Memory
 
 
 def threaded(fn):
@@ -93,17 +97,20 @@ class SnakeGame:
 
     cpu: CPU
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.cpu = CPU(callback=self.callback, program_offset=0x0600)
         self.logger = get_logger(self.__class__.__name__)
         self.last_key_pressed = None
+        self.previous_screen = None
 
     def run(self) -> None:
         self.read_input()
         pygame.init()
         self.screen = pygame.display.set_mode((SCREEN_SIZE[0]*PIXEL_SIZE, SCREEN_SIZE[1]*PIXEL_SIZE))
         self.cpu.load_and_run(self.CODE)
-        # self.cpu.load_and_deassemble(self.CODE)
+
+    def deassemble(self):
+        self.cpu.load_and_deassemble(self.CODE)
 
     def colour(self, byte: int) -> Tuple[int, int, int]:
         match byte:
@@ -142,8 +149,15 @@ class SnakeGame:
         with Listener(on_press=on_press) as listener:
             listener.join()
 
+    def redraw(self, surface: pygame.Surface) -> None:
+        # Scale the surface up
+        surface = pygame.transform.scale(surface, (WIDTH * PIXEL_SIZE, HEIGHT * PIXEL_SIZE))
+
+        self.screen.blit(surface, (0, 0))
+        pygame.display.update()
+
     def callback(self) -> None:
-        # self.logger.info(f"Opcode: {getattr(self.cpu.opcode, 'mnemonic', None)} PC: {self.cpu.program_counter}, A: {self.cpu.register_a}, X: {self.cpu.register_x}, Y: {self.cpu.register_y}, SP: {self.cpu.stack_pointer}, Status: {Flags(int(self.cpu.status))}")
+        self.logger.debug(f"Opcode: {getattr(self.cpu.opcode, 'mnemonic', None)} PC: {self.cpu.program_counter}, A: {self.cpu.register_a}, X: {self.cpu.register_x}, Y: {self.cpu.register_y}, SP: {self.cpu.stack_pointer}, Status: {Flags(int(self.cpu.status))}")
 
         # read user input and write it to mem[0xFF]
         if self.last_key_pressed:
@@ -154,29 +168,38 @@ class SnakeGame:
         self.cpu.memory.write(0xfe, random.randint(1, 16))
         # read mem mapped screen state
 
-             # Create a new surface
-        surface = pygame.Surface((WIDTH, HEIGHT))
+        self.current_screen = self.cpu.memory.slice(0x0200, 0x0600)
+        if self.previous_screen is None or not np.array_equal(self.current_screen, self.previous_screen):
+            self.previous_screen = self.current_screen
+            # Create a new surface
+            surface = pygame.Surface((WIDTH, HEIGHT))
 
-        # Create a pixel array from the surface
-        pixels = pygame.PixelArray(surface)
+            # Create a pixel array from the surface
+            pixels = pygame.PixelArray(surface)
 
-        for i, colour in enumerate(self.cpu.memory.slice(0x0200, 0x0600)):
-            x = i % WIDTH
-            y = i // WIDTH
-            pixels[x, y] = self.colour(colour)
+            for i, colour in enumerate(self.cpu.memory.slice(0x0200, 0x0600)):
+                x = i % WIDTH
+                y = i // WIDTH
+                pixels[x, y] = self.colour(colour)
 
-        # Delete the pixel array to make the surface usable again
-        del pixels
+            # Delete the pixel array to make the surface usable again
+            del pixels
 
-        # Scale the surface up
-        surface = pygame.transform.scale(surface, (WIDTH * PIXEL_SIZE, HEIGHT * PIXEL_SIZE))
-
-        self.screen.blit(surface, (0, 0))
-        pygame.display.update()
+            self.redraw(surface)
 
         # generate random number between 1-16 and store in memory location 0xfe
         self.cpu.memory.write(0xfe, random.randint(1, 16))
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+
+    parser.add_argument("-d", "--deassemble", action="store_true", help="Deassemble the code")
+
+    args = parser.parse_args()
+
+    if args.deassemble:
+        SnakeGame().deassemble()
+        exit(0)
+
     SnakeGame().run()

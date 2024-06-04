@@ -41,9 +41,9 @@ class ColoredFormatter(logging.Formatter):
 
 
 @functools.lru_cache
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name: str, level: str = "INFO") -> logging.Logger:
     logger = logging.getLogger(name)
-    logging_level = os.environ.get("LOGGING_LEVEL", "DEBUG")
+    logging_level = os.environ.get("LOGGING_LEVEL", level)
     logger.setLevel(getattr(logging, logging_level))
 
     consoleHandler = logging.StreamHandler()
