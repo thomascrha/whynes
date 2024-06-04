@@ -35,7 +35,6 @@ implemented a snake game using PyGame (SDL) and pyinput for controls and the CPU
 ```console
 pip install .[dev]  # install all the dependencies including dev P.S. on zsh surround '.[dev]' quotes
 python3 src/snake.py
-
 ```
 
 <img src="https://github.com/thomascrha/whynes/blob/main/snake-boi.gif?raw=true" align="centre">
