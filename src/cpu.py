@@ -293,7 +293,7 @@ class CPU:
 
                 # BREAK
                 case 0x00:
-                    exit(0)
+                    return
 
                 # BVC
                 case 0x50:

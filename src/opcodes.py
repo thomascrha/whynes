@@ -68,9 +68,7 @@ class Opcode:
                 # remove the first character from the opcode (the $) and convert
                 # it to an int
                 code = int("".join(row["Opcode"][1:]), 16)
-                addressing_mode = getattr(
-                    AddressingMode, row["Addressing Mode"].replace(" ", "_").replace("-", "_").upper()
-                )
+                addressing_mode = getattr(AddressingMode, row["Addressing Mode"].replace(" ", "_").replace("-", "_").upper())
                 cycles = int(row["No. Cycles"].split("+")[0])
                 length = int(row["No. Bytes"])
                 mnemonic = row["Assembly Language Form"]

@@ -52,12 +52,8 @@ class Cartridge:
         self.character_rom_size_multiplier = self.header[5]
         self.character_rom_size = self.character_rom_size_multiplier * HEX_8
 
-        self.logger.debug(
-            f"The PRG ROM size is {int(self.program_rom_size_multiplier)}x16Kb = {hex(self.program_rom_size)}"
-        )
-        self.logger.debug(
-            f"The CHR ROM size is {int(self.character_rom_size_multiplier)}x8Kb = {hex(self.character_rom_size)}"
-        )
+        self.logger.debug(f"The PRG ROM size is {int(self.program_rom_size_multiplier)}x16Kb = {hex(self.program_rom_size)}")
+        self.logger.debug(f"The CHR ROM size is {int(self.character_rom_size_multiplier)}x8Kb = {hex(self.character_rom_size)}")
 
         if self.type in [CartridgeFormat.ines, CartridgeFormat.ines07]:
             self.logger.debug(HeaderFlags6(self.header[6]))
@@ -67,10 +63,7 @@ class Cartridge:
         self.program_rom = self.raw_bytes[HEX_16 : (HEX_16 * KB) * self.program_rom_size_multiplier]
 
         # CHR ROM is contained in 8kb chunks after the header and the PGR ROM
-        self.character_rom = self.raw_bytes[
-            HEX_16
-            + (HEX_16 * KB) * self.program_rom_size_multiplier : (HEX_8 * KB) * self.character_rom_size_multiplier
-        ]
+        self.character_rom = self.raw_bytes[HEX_16 + (HEX_16 * KB) * self.program_rom_size_multiplier : (HEX_8 * KB) * self.character_rom_size_multiplier]
 
     def validate(self, rom_path: FilePath) -> bytearray:
         # Only accept either iNes or NES2.0 type files
@@ -80,9 +73,7 @@ class Cartridge:
             raw_bytes = _raw_bytes.read()
 
         # this is true of ALL the NES rom formats - if this true then the ROM file provided is upto spec
-        if not (
-            chr(raw_bytes[0]) == "N" and chr(raw_bytes[1]) == "E" and chr(raw_bytes[2]) == "S" and raw_bytes[3] == 0x1A
-        ):
+        if not (chr(raw_bytes[0]) == "N" and chr(raw_bytes[1]) == "E" and chr(raw_bytes[2]) == "S" and raw_bytes[3] == 0x1A):
             self.logger.critical(f"The provided ROM file {rom_path} can't be identified")
             sys.exit(1)
 
@@ -105,13 +96,7 @@ class Cartridge:
         if (self.raw_bytes[7] & 0x0C) == 0x04:
             type = CartridgeFormat.archaicines
 
-        if (
-            (self.raw_bytes[7] & 0x0C) == 0x00
-            and self.raw_bytes[13] == 0x00
-            and self.raw_bytes[14] == 0x00
-            and self.raw_bytes[15] == 0x00
-            and self.raw_bytes[16] == 0x00
-        ):
+        if (self.raw_bytes[7] & 0x0C) == 0x00 and self.raw_bytes[13] == 0x00 and self.raw_bytes[14] == 0x00 and self.raw_bytes[15] == 0x00 and self.raw_bytes[16] == 0x00:
             type = CartridgeFormat.ines
 
         return type

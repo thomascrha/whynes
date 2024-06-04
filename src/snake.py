@@ -6,6 +6,7 @@ The game is implemented in 6502 assembly and runs on a virtual 6502 CPU implemen
 By default the game will run in a pygame window, but you can also deassemble the code by passing the -d flag.
 """
 import argparse
+import asyncio
 import random
 import threading
 from typing import List, Optional, Tuple
@@ -15,15 +16,6 @@ from pynput.keyboard import Key, Listener
 from constants import Flags
 from cpu import CPU
 from logger import get_logger
-
-
-def threaded(fn):
-    def wrapper(*args, **kwargs):
-        thread = threading.Thread(target=fn, args=args, kwargs=kwargs)
-        thread.start()
-
-    return wrapper
-
 
 WIDTH = 32
 HEIGHT = 32
@@ -91,7 +83,7 @@ class SnakeGame:
         0x01, 0x60, 0xe6, 0x11, 0xa9, 0x06, 0xc5, 0x11, 0xf0, 0x0c, 0x60, 0xc6, 0x10, 0xa5, 0x10, 0x29,
         0x1f, 0xc9, 0x1f, 0xf0, 0x01, 0x60, 0x4c, 0x35, 0x07, 0xa0, 0x00, 0xa5, 0xfe, 0x91, 0x00, 0x60,
         0xa6, 0x03, 0xa9, 0x00, 0x81, 0x10, 0xa2, 0x00, 0xa9, 0x01, 0x81, 0x10, 0x60, 0xa2, 0x00, 0xea,
-        0xea, 0xca, 0xd0, 0xfb, 0x60,
+        0xea, 0xca, 0xd0, 0xfb, 0x60, 0x00
     ]
     # fmt: off
 
@@ -102,12 +94,19 @@ class SnakeGame:
         self.logger = get_logger(self.__class__.__name__)
         self.last_key_pressed = None
         self.previous_screen = None
+        self.exit = False
 
-    def run(self) -> None:
-        self.read_input()
+    async def run(self) -> None:
         pygame.init()
         self.screen = pygame.display.set_mode((WIDTH*PIXEL_SIZE, HEIGHT*PIXEL_SIZE))
+
+        key_listener = threading.Thread(target=self.read_input)
+        key_listener.start()
+
         self.cpu.load_and_run(self.CODE)
+
+        key_listener.join()
+        pygame.quit()
 
     def deassemble(self):
         self.cpu.load_and_deassemble(self.CODE)
@@ -133,10 +132,9 @@ class SnakeGame:
             case _:
                 return (0, 255, 255) # Cyan
 
-    @threaded
     def read_input(self) -> Optional[int]:
         def on_press(key):
-            self.logger.info(key)
+            self.logger.debug(key)
             if key == Key.up:
                 self.last_key_pressed = 0x77
             elif key == Key.down:
@@ -146,7 +144,7 @@ class SnakeGame:
             elif key == Key.right:
                 self.last_key_pressed = 0x64
 
-        with Listener(on_press=on_press) as listener:
+        with Listener(on_press=on_press, ) as listener:
             listener.join()
 
     def redraw(self, surface: pygame.Surface) -> None:
@@ -202,4 +200,4 @@ if __name__ == "__main__":
         SnakeGame().deassemble()
         exit(0)
 
-    SnakeGame().run()
+    asyncio.run(SnakeGame().run())

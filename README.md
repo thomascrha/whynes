@@ -32,6 +32,7 @@ I needed a way to confirm my implementation of the CPU was correct, so I found a
 written in 6502 assembly and given the instructions [here](https://bugzmanov.github.io/nes_ebook/chapter_3_4.html), I
 implemented a snake game using PyGame (SDL) and pyinput for controls and the CPU implementation.
 
+
 ```console
 pip install .[dev]  # install all the dependencies including dev P.S. on zsh surround '.[dev]' quotes
 python3 src/snake.py
