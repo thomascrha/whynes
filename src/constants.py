@@ -1,15 +1,5 @@
 from enum import STRICT, Enum, Flag, IntFlag, auto
 
-U16 = 0xFFFF
-U8 = 0xFF
-KB = 1024
-
-MEMORY_SIZE = 0xFFFF
-PROGRAM_ROM_START = 0x8000
-PROGRAM_ROM_END = 0xFFFF
-CHARACTER_ROM_START = 0x0000
-CHARACTER_ROM_END = 0x1FFF
-
 
 class Flags(IntFlag, boundary=STRICT):
     """

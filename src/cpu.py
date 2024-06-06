@@ -1,7 +1,7 @@
 import sys
 from copy import copy
 from typing import Any, Callable, Dict, List, Optional, Union
-from constants import MEMORY_SIZE, AddressingMode, Flags
+from constants import AddressingMode, Flags
 from logger import get_logger
 from memory import Memory
 from opcodes import Opcode
@@ -170,7 +170,7 @@ class CPU:
         self.run()
 
     def load(self, program: List[int]):
-        self.memory[self.program_offset : (self.program_offset + len(program))] = program
+        self.memory.load(self.program_offset, (self.program_offset + len(program)), program)
         self.memory.write_u16(0xFFFC, self.program_offset)
 
     def reset(self, **kwargs: Dict[str, Union[int, List[Flags]]]) -> None:
