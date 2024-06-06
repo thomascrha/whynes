@@ -13,6 +13,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 import pygame
 from pynput.keyboard import Key, Listener
+from cartridge import Cartridge
 from constants import Flags
 from cpu import CPU
 from logger import get_logger
@@ -37,7 +38,7 @@ COLORS = {
 
 class SnakeGame:
     # fmt: off
-    CODE: List[int] = [
+    CODE_: List[int] = [
         0x20, 0x06, 0x06,
         0x20, 0x38, 0x06,
         0x20, 0x0d, 0x06,
@@ -91,11 +92,26 @@ class SnakeGame:
 
     cpu: CPU
 
-    def __init__(self) -> None:
-        self.cpu = CPU(Memory(), callback=self.callback, program_offset=0x0600)
+    def __init__(self, code: None | str = None) -> None:
+        self.cart = None
+        if code is not None:
+            self.cart = Cartridge(rom_path=code)
+        self.memory = Memory(rom=self.cart)
+        self.cpu = CPU(self.memory, callback=self.callback, program_offset=0x0600)
+        self.code = code
         self.last_key_pressed = None
         self.previous_screen = None
         self.exit = False
+
+    @property
+    def CODE(self) -> List[int]:
+        if self.code is None:
+            return self.CODE_
+
+        if self.cart is None:
+            raise ValueError("No ROM loaded")
+
+        return self.cart.program_rom
 
     async def run(self) -> None:
         pygame.init()

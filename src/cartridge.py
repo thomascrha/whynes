@@ -1,5 +1,6 @@
 import sys
 from enum import Enum
+from typing import List
 from pydantic import FilePath
 from constants import CartridgeFormat, HeaderFlags6, HeaderFlags9iNES
 from logger import get_logger
@@ -35,12 +36,12 @@ class Cartridge:
     """
 
     rom_path: FilePath
-    raw_bytes: bytearray
+    raw_bytes: List[int]
 
     type_: CartridgeFormat
-    header: bytearray
-    program_rom: bytearray
-    character_rom: bytearray
+    header: List[int]
+    program_rom: List[int]
+    character_rom: List[int]
     program_rom_size: int
     character_rom_size: int
     program_rom_size_multiplier: int
@@ -54,15 +55,15 @@ class Cartridge:
         self.raw_bytes = self.validate(self.rom_path)
         self.type_ = self.identify()
 
-        logger.debug(f"The ROM at {self.rom_path} is of type {self.type}")
+        logger.debug(f"The ROM at {self.rom_path} is of type {self.type_}")
 
-        self.header = self.raw_bytes[:HEX_16]
+        self.header = self.raw_bytes[:U16]
 
         self.program_rom_size_multiplier = self.header[4]
-        self.program_rom_size = self.program_rom_size_multiplier * HEX_16
+        self.program_rom_size = self.program_rom_size_multiplier * U16
 
         self.character_rom_size_multiplier = self.header[5]
-        self.character_rom_size = self.character_rom_size_multiplier * HEX_8
+        self.character_rom_size = self.character_rom_size_multiplier * U8
 
         logger.debug(f"The PRG ROM size is {int(self.program_rom_size_multiplier)}x16Kb = {hex(self.program_rom_size)}")
         logger.debug(f"The CHR ROM size is {int(self.character_rom_size_multiplier)}x8Kb = {hex(self.character_rom_size)}")
@@ -72,19 +73,22 @@ class Cartridge:
             logger.debug(HeaderFlags9iNES(self.header[9]))
 
         # PRG ROM is contained in 16Kb chunks after the header
-        self.program_rom = self.raw_bytes[HEX_16 : (HEX_16 * KB) * self.program_rom_size_multiplier]
+        self.program_rom = self.raw_bytes[U16 : (U16 * KB) * self.program_rom_size_multiplier]
 
         # CHR ROM is contained in 8kb chunks after the header and the PGR ROM
-        self.character_rom = self.raw_bytes[HEX_16 + (HEX_16 * KB) * self.program_rom_size_multiplier : (HEX_8 * KB) * self.character_rom_size_multiplier]
+        self.character_rom = self.raw_bytes[U16 + (U16 * KB) * self.program_rom_size_multiplier : (U8 * KB) * self.character_rom_size_multiplier]
 
         self.mapper = (self.header[7] & 0b1111_0000) | (self.header[6] >> 4)
+
+        logger.debug(f"Mapper type: {self.mapper}")
 
         four_screen = self.header[6] & 0b1000 != 0
         vertical_mirroring = self.header[6] & 0b1 != 0
 
         self.screen_mirroring = Mirroring.FOUR_SCREEN if four_screen else Mirroring.VERTICAL if vertical_mirroring else Mirroring.HORIZONTAL
+        logger.debug(f"Screen mirroring: {self.screen_mirroring}")
 
-    def validate(self, rom_path: FilePath) -> bytearray:
+    def validate(self, rom_path: FilePath) -> List[int]:
         # Only accept either iNes or NES2.0 type files
         # https://www.nesdev.org/wiki/NES_2.0
 
@@ -96,7 +100,7 @@ class Cartridge:
             logger.critical(f"The provided ROM file {rom_path} can't be identified")
             sys.exit(1)
 
-        return bytearray(raw_bytes)
+        return list(raw_bytes)
 
     def identify(self) -> CartridgeFormat:
         """Recommended detection procedure:

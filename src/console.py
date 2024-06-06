@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 from cartridge import Cartridge
 from cpu import CPU
-from logger import get_logge, r
+from logger import get_logger
 from memory import Memory
 
 logger = get_logger(__name__)
@@ -25,6 +25,7 @@ if __name__ == "__main__":
         "-r",
         "--rom-path",
         type=str,
+        required=True,
         help="The filepath of the rom being loaded into the cartridge",
     )
 
