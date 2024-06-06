@@ -25,6 +25,7 @@ class CPU:
 
     def __init__(
         self,
+        memory: Memory,
         callback: Optional[Callable] = None,
         stack: int = 0x0100,
         program_offset: int = 0x8000,
@@ -38,7 +39,7 @@ class CPU:
 
         self.stack_pointer = 0xFF
 
-        self.memory = Memory()
+        self.memory = memory
         self.opcodes = Opcode.load_opcodes()
 
         self.callback = callback

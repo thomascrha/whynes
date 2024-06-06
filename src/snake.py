@@ -16,7 +16,9 @@ from pynput.keyboard import Key, Listener
 from constants import Flags
 from cpu import CPU
 from logger import get_logger
+from memory import Memory
 
+logger = get_logger(__name__)
 WIDTH = 32
 HEIGHT = 32
 SCREEN_SIZE = (WIDTH, HEIGHT)
@@ -90,8 +92,7 @@ class SnakeGame:
     cpu: CPU
 
     def __init__(self) -> None:
-        self.cpu = CPU(callback=self.callback, program_offset=0x0600)
-        self.logger = get_logger(self.__class__.__name__)
+        self.cpu = CPU(Memory(), callback=self.callback, program_offset=0x0600)
         self.last_key_pressed = None
         self.previous_screen = None
         self.exit = False
@@ -134,7 +135,7 @@ class SnakeGame:
 
     def read_input(self) -> Optional[int]:
         def on_press(key):
-            self.logger.debug(key)
+            logger.debug(key)
             if key == Key.up:
                 self.last_key_pressed = 0x77
             elif key == Key.down:
@@ -155,7 +156,7 @@ class SnakeGame:
         pygame.display.update()
 
     def callback(self) -> None:
-        self.logger.debug(f"Opcode: {getattr(self.cpu.opcode, 'mnemonic', None)} PC: {self.cpu.program_counter}, A: {self.cpu.register_a}, X: {self.cpu.register_x}, Y: {self.cpu.register_y}, SP: {self.cpu.stack_pointer}, Status: {Flags(int(self.cpu.status))}")
+        logger.debug(f"Opcode: {getattr(self.cpu.opcode, 'mnemonic', None)} PC: {self.cpu.program_counter}, A: {self.cpu.register_a}, X: {self.cpu.register_x}, Y: {self.cpu.register_y}, SP: {self.cpu.stack_pointer}, Status: {Flags(int(self.cpu.status))}")
 
         # read user input and write it to mem[0xFF]
         if self.last_key_pressed:

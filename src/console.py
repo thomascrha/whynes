@@ -2,21 +2,18 @@ import argparse
 from pathlib import Path
 from cartridge import Cartridge
 from cpu import CPU
-from memory import Memory
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class Console:
     cartrige: Cartridge
-    memory: Memory
     cpu: CPU
 
     def __init__(self, rom_path: Path) -> None:
         self.cartrige = Cartridge(rom_path=rom_path)
-        self.memory = Memory()
-        self.cpu = CPU(self.memory)
-
-    def load_cartridge(self) -> None:
-        self.memory.load_cartridge(self.cartrige)
+        self.cpu = CPU()
 
 
 if __name__ == "__main__":
@@ -30,9 +27,3 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     console = Console(**args.__dict__)
-    console.load_cartridge()
-    console.cpu.run()
-
-    # if __name__ == "__main__":
-#     app = StopwatchApp()
-#     app.run()
