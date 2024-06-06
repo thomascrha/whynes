@@ -1,4 +1,5 @@
 from typing import List
+from cartridge import Cartridge
 
 # //  _______________ $10000  _______________
 # // | PRG-ROM       |       |               |
@@ -36,12 +37,12 @@ MEMORY_SIZE: int = 0xFFFF
 
 
 class Memory:
-    def __init__(self, has_bus: bool = False, *args, **kwargs):
+    def __init__(self, rom: None | Cartridge = None, *args, **kwargs):
         super(Memory, self).__init__(*args, **kwargs)
 
-        self.has_bus = has_bus
+        self.rom = rom
 
-        if not self.has_bus:
+        if self.rom is None:
             self.data = [0] * MEMORY_SIZE
             self.cpu_vram = []
         else:
@@ -49,23 +50,38 @@ class Memory:
             self.cpu_vram = [0] * 0x800
 
     def read(self, addr: int) -> int:
-        if not self.has_bus:
+        if not self.rom:
             return self.data[addr]
 
         match addr:
+            case _ if addr >= 0x8000 & addr <= 0xFFFF:
+                self.read_prg_rom(addr)
             case _ if addr >= RAM and addr <= RAM_MIRRORS_END:
                 return self.cpu_vram[addr & 0b00000111_11111111]
             case _ if addr >= PPU_REGISTERS and addr <= PPU_REGISTERS_MIRRORS_END:
-                raise ValueError(f"Not implemented for PPU: address {addr}")
+                raise NotImplementedError(f"Not implemented for PPU: address {addr}")
             case _:
-                raise ValueError(f"Not implemented for address {addr}")
+                raise NotImplementedError(f"Not implemented for address {addr}")
+
+        return 0
+
+    def read_prg_rom(self, addr: int) -> int:
+        if not self.rom:
+            raise RuntimeError("Unable to continue as no rom was loaded")
+
+        addr -= 0x8000
+        if len(self.rom.program_rom) == 0x4000 and addr >= 0x4000:
+            addr = addr % 0x4000
+        return self.rom.program_rom[addr]
 
     def write(self, addr: int, data: int) -> None:
-        if not self.has_bus:
+        if not self.rom:
             self.data[addr] = data
             return
 
         match addr:
+            case _ if addr >= 0x8000 & addr <= 0xFFFF:
+                raise ValueError(f"Cannot write to ROM: address {addr}")
             case _ if addr >= RAM and addr <= RAM_MIRRORS_END:
                 self.cpu_vram[addr & 0b11111111111] = data
             case _ if addr >= PPU_REGISTERS and addr <= PPU_REGISTERS_MIRRORS_END:

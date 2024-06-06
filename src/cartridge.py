@@ -1,10 +1,14 @@
 import sys
 from enum import Enum
 from pydantic import FilePath
-from constants import HEX_8, HEX_16, KB, CartridgeFormat, HeaderFlags6, HeaderFlags9iNES
+from constants import CartridgeFormat, HeaderFlags6, HeaderFlags9iNES
 from logger import get_logger
 
 logger = get_logger(__name__)
+
+U16 = 0xFFFF
+U8 = 0xFF
+KB = 1024
 
 
 class Mirroring(str, Enum):

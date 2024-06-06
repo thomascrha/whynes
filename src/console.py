@@ -2,7 +2,8 @@ import argparse
 from pathlib import Path
 from cartridge import Cartridge
 from cpu import CPU
-from logger import get_logger
+from logger import get_logge, r
+from memory import Memory
 
 logger = get_logger(__name__)
 
@@ -10,10 +11,12 @@ logger = get_logger(__name__)
 class Console:
     cartrige: Cartridge
     cpu: CPU
+    memory: Memory
 
     def __init__(self, rom_path: Path) -> None:
         self.cartrige = Cartridge(rom_path=rom_path)
-        self.cpu = CPU()
+        self.memory = Memory(rom=self.cartrige)
+        self.cpu = CPU(self.memory)
 
 
 if __name__ == "__main__":
