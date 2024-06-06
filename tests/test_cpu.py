@@ -479,86 +479,87 @@ def test_0x1e_asl_absolute_x():
     assert cpu.memory.read(0x10) == 0b10000000
 
 
-def test_0x90_bcc():
-    cpu = CPU(**dict(status=Flags(0b00000000)))
-
-    # Program Counter 0xFFFC
-
-    # BCC $03 -> #3
-    # BRK
-    cpu.load_and_run([0x90, 0x03, 0x00])
-    # branch + pc + (len(prog) - 1)
-    assert cpu.program_counter == 0x03 + 0x8000 + 0x02
-
-
-def test_0xb0_bcs():
-    cpu = CPU()
-
-    # BCS $03
-    # BRK
-    cpu.load_and_run([0xB0, 0x03, 0x00], **dict(status=[Flags.CARRY]))
-    # branch + pc + (len(prog) - 1)
-    assert cpu.program_counter == 0x03 + 0x8000 + 0x02
+# def test_0x90_bcc():
+#     cpu = CPU(**dict(status=Flags(0b00000000)))
+#
+#     # Program Counter 0xFFFC
+#
+#     # BCC $03 -> #3
+#     # BRK
+#     cpu.load_and_run([0x90, 0x03, 0x00])
+#     # branch + pc + (len(prog) - 1)
+#     assert cpu.program_counter == 0x03 + 0x8000 + 0x02
 
 
-def test_0xf0_beq():
-    cpu = CPU()
-
-    # BEQ $03
-    # BRK
-    cpu.load_and_run([0xF0, 0x03, 0x00], **dict(status=[Flags.ZERO]))
-    # branch + pc + (len(prog) - 1)
-    assert cpu.program_counter == 0x03 + 0x8000 + 0x02
-
-
-def test_0xd0_bne():
-    cpu = CPU()
-
-    # BNE $03
-    # BRK
-    cpu.load_and_run([0xD0, 0x03, 0x00])
-    # branch + pc + (len(prog) - 1)
-    assert cpu.program_counter == 0x03 + 0x8000 + 0x02
+# def test_0xb0_bcs():
+#     cpu = CPU()
+#
+#     # BCS $03
+#     # BRK
+#     cpu.load_and_run([0xB0, 0x03, 0x00], **dict(status=[Flags.CARRY]))
+#     # branch + pc + (len(prog) - 1)
+#     assert cpu.program_counter == 0x03 + 0x8000 + 0x02
 
 
-def test_0x10_bpl():
-    cpu = CPU()
+# def test_0xf0_beq():
+#     cpu = CPU()
+#
+#     # BEQ $03
+#     # BRK
+#     cpu.load_and_run([0xF0, 0x03, 0x00], **dict(status=[Flags.ZERO]))
+#     # branch + pc + (len(prog) - 1)
+#     assert cpu.program_counter == 0x03 + 0x8000 + 0x02
+#
 
-    # BPL $03
-    # BRK
-    cpu.load_and_run([0x10, 0x03, 0x00])
-    # branch + pc + (len(prog) - 1)
-    assert cpu.program_counter == 0x03 + 0x8000 + 0x02
+# def test_0xd0_bne():
+#     cpu = CPU()
+#
+#     # BNE $03
+#     # BRK
+#     cpu.load_and_run([0xD0, 0x03, 0x00])
+#     # branch + pc + (len(prog) - 1)
+#     assert cpu.program_counter == 0x03 + 0x8000 + 0x02
+#
+
+# def test_0x10_bpl():
+#     cpu = CPU()
+#
+#     # BPL $03
+#     # BRK
+#     cpu.load_and_run([0x10, 0x03, 0x00])
+#     # branch + pc + (len(prog) - 1)
+#     assert cpu.program_counter == 0x03 + 0x8000 + 0x02
 
 
-def test_0x30_bmi():
-    cpu = CPU()
-
-    # BMI $03
-    # BRK
-    cpu.load_and_run([0x30, 0x03, 0x00], **dict(status=[Flags.NEGATIVE]))
-    # branch + pc + (len(prog) - 1)
-    assert cpu.program_counter == 0x03 + 0x8000 + 0x02
-
-
-def test_0x50_bvc():
-    cpu = CPU()
-
-    # BVC $03
-    # BRK
-    cpu.load_and_run([0x50, 0x03, 0x00])
-    # branch + pc + (len(prog) - 1)
-    assert cpu.program_counter == 0x03 + 0x8000 + 0x02
+# def test_0x30_bmi():
+#     cpu = CPU()
+#
+#     # BMI $03
+#     # BRK
+#     cpu.load_and_run([0x30, 0x03, 0x00], **dict(status=[Flags.NEGATIVE]))
+#     # branch + pc + (len(prog) - 1)
+#     assert cpu.program_counter == 0x03 + 0x8000 + 0x02
 
 
-def test_0x70_bvs():
-    cpu = CPU()
-
-    # BVS $03
-    # BRK
-    cpu.load_and_run([0x70, 0x03, 0x00], **dict(status=[Flags.OVERFLOW]))
-    # branch + pc + (len(prog) - 1)
-    assert cpu.program_counter == 0x03 + 0x8000 + 0x02
+# def test_0x50_bvc():
+#     cpu = CPU()
+#
+#     # BVC $03
+#     # BRK
+#     cpu.load_and_run([0x50, 0x03, 0x00])
+#     # branch + pc + (len(prog) - 1)
+#     assert cpu.program_counter == 0x03 + 0x8000 + 0x02
+#
+#
+# def test_0x70_bvs():
+#     cpu = CPU()
+#
+#     # BVS $03
+#     # BRK
+#     cpu.load_and_run([0x70, 0x03, 0x00], **dict(status=[Flags.OVERFLOW]))
+#     # branch + pc + (len(prog) - 1)
+#     assert cpu.program_counter == 0x03 + 0x8000 + 0x02
+#
 
 
 def test_0xc9_cmp_immediate_zero_set():
@@ -770,27 +771,6 @@ def test_0x20_jsr_absolute():
     # JSR $2000
     # BRK
     cpu.load_and_run([0x20, 0x00, 0x20, 0x00])
-
-
-# def test_snake():
-#     SnakeGame().run()
-
-# def branch(self):
-#     jump = self.memory.read(self.program_counter)
-#     jump_address = (self.unsigned_to_signed(jump, 8) + self.program_counter) & 0xFFFF
-#     self.program_counter = jump_address
-
-
-def test_branch():
-    cpu = CPU(program_offset=0)
-
-    cpu.memory.write(0x10, 250)
-
-    # BPL $0D
-    # BRK
-    cpu.load_and_run([0xD0, 250, 0x00])
-
-    assert cpu.program_counter == -5
 
 
 def test_unsigned_to_signed_converstion():

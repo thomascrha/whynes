@@ -1,4 +1,5 @@
 from typing import List
+import numpy as np
 
 # //  _______________ $10000  _______________
 # // | PRG-ROM       |       |               |
@@ -42,13 +43,13 @@ class Memory:
         self.has_bus = has_bus
 
         if not self.has_bus:
-            self.data = [0] * MEMORY_SIZE
-            self.cpu_vram = []
+            self.data = np.zeros(MEMORY_SIZE, dtype=np.uint8)
+            self.cpu_vram = np.zeros(0x800, dtype=np.uint8)
         else:
-            self.data = []
-            self.cpu_vram = [0] * 0x800
+            self.data = np.array([], dtype=np.uint8)
+            self.cpu_vram = np.zeros(0x800, dtype=np.uint8)
 
-    def read(self, addr: int) -> int:
+    def read(self, addr: np.uint16) -> np.uint16:
         if not self.has_bus:
             return self.data[addr]
 
@@ -60,20 +61,20 @@ class Memory:
             case _:
                 raise ValueError(f"Not implemented for address {addr}")
 
-    def write(self, addr: int, data: int) -> None:
+    def write(self, addr: np.uint16, data: np.uint8) -> None:
         if not self.has_bus:
-            self.data[addr] = data
+            self.data[addr] = np.uint8(data)
             return
 
         match addr:
             case _ if addr >= RAM and addr <= RAM_MIRRORS_END:
-                self.cpu_vram[addr & 0b11111111111] = data
+                self.cpu_vram[addr & 0b11111111111] = np.uint8(data)
             case _ if addr >= PPU_REGISTERS and addr <= PPU_REGISTERS_MIRRORS_END:
                 raise ValueError(f"Not implemented for PPU: address {addr}")
             case _:
                 raise ValueError(f"Not implemented for address {addr}")
 
-    def read_u16(self, pos: int) -> int:
+    def read_u16(self, pos: np.uint16) -> np.uint16:
         low = self.read(pos)
         hi = self.read(pos + 1)
 
