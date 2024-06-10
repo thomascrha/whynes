@@ -1,5 +1,5 @@
 from typing import List
-from cartridge import Cartridge
+from cartridge import Rom
 
 # //  _______________ $10000  _______________
 # // | PRG-ROM       |       |               |
@@ -37,7 +37,7 @@ MEMORY_SIZE: int = 0xFFFF
 
 
 class Memory:
-    def __init__(self, rom: None | Cartridge = None, *args, **kwargs):
+    def __init__(self, rom: None | Rom = None, *args, **kwargs):
         super(Memory, self).__init__(*args, **kwargs)
 
         self.rom = rom
@@ -80,7 +80,7 @@ class Memory:
             return
 
         match addr:
-            case _ if addr >= 0x8000 & addr <= 0xFFFF:
+            case _ if addr >= 0x8000 & addr < 0xFFFF:
                 raise ValueError(f"Cannot write to ROM: address {addr}")
             case _ if addr >= RAM and addr <= RAM_MIRRORS_END:
                 self.cpu_vram[addr & 0b11111111111] = data

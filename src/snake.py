@@ -13,7 +13,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 import pygame
 from pynput.keyboard import Key, Listener
-from cartridge import Cartridge
+from cartridge import Rom
 from constants import Flags
 from cpu import CPU
 from logger import get_logger
@@ -92,20 +92,24 @@ class SnakeGame:
 
     cpu: CPU
 
-    def __init__(self, code: None | str = None) -> None:
+    def __init__(self, rom_path: None | str = None) -> None:
+        self.rom_path = rom_path
+
         self.cart = None
-        if code is not None:
-            self.cart = Cartridge(rom_path=code)
+        program_offset=0x0600
+        if self.rom_path is not None:
+            self.cart = Rom(rom_path=self.rom_path)
+            program_offset=0x8600
+
         self.memory = Memory(rom=self.cart)
-        self.cpu = CPU(self.memory, callback=self.callback, program_offset=0x0600)
-        self.code = code
+        self.cpu = CPU(self.memory, callback=self.callback, program_offset=program_offset)
         self.last_key_pressed = None
         self.previous_screen = None
         self.exit = False
 
     @property
     def CODE(self) -> List[int]:
-        if self.code is None:
+        if self.rom_path is None:
             return self.CODE_
 
         if self.cart is None:
@@ -120,13 +124,21 @@ class SnakeGame:
         key_listener = threading.Thread(target=self.read_input)
         key_listener.start()
 
-        self.cpu.load_and_run(self.CODE)
+        if not self.rom_path:
+            self.cpu.load_and_run(self.CODE)
+        else:
+            self.cpu.reset()
+            self.cpu.run
 
         key_listener.join()
         pygame.quit()
 
     def deassemble(self):
-        self.cpu.load_and_deassemble(self.CODE)
+        if not self.rom_path:
+            return self.cpu.load_and_deassemble(self.CODE)
+
+        self.cpu.reset()
+        return self.cpu.deassemble()
 
     def colour(self, byte: int) -> Tuple[int, int, int]:
         match byte:
@@ -210,11 +222,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument("-d", "--deassemble", action="store_true", help="Deassemble the code")
+    parser.add_argument("-r", "--rom-path", type=str, help="The filepath of the rom being loaded into the cartridge")
 
     args = parser.parse_args()
 
     if args.deassemble:
+        if args.rom_path:
+            SnakeGame(args.rom_path).deassemble()
+            exit(0)
         SnakeGame().deassemble()
+        exit(0)
+
+    if args.rom_path:
+        asyncio.run(SnakeGame(args.rom_path).run())
         exit(0)
 
     asyncio.run(SnakeGame().run())

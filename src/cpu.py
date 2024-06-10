@@ -28,7 +28,7 @@ class CPU:
         memory: Memory,
         callback: Optional[Callable] = None,
         stack: int = 0x0100,
-        program_offset: int = 0x8000,
+        program_offset: int = 0x8600,
         **kwargs: Dict[str, Union[int, List[Flags]]],
     ):
         self.register_x = 0  # 8 bits
@@ -171,7 +171,9 @@ class CPU:
         self.run()
 
     def load(self, program: List[int]):
-        self.memory.load(self.program_offset, (self.program_offset + len(program)), program)
+        for i in range(len(program)):
+            self.memory.write(self.program_offset + i, program[i])
+
         self.memory.write_u16(0xFFFC, self.program_offset)
 
     def reset(self, **kwargs: Dict[str, Union[int, List[Flags]]]) -> None:
