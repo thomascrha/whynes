@@ -7,13 +7,15 @@ By default the game will run in a pygame window, but you can also deassemble the
 """
 import argparse
 import asyncio
+import datetime
 import random
+import signal
 import threading
 from typing import List, Optional, Tuple
 import numpy as np
 import pygame
 from pynput.keyboard import Key, Listener
-from cartridge import Rom
+from cartridge import Cartridge
 from constants import Flags
 from cpu import CPU
 from logger import get_logger
@@ -95,27 +97,29 @@ class SnakeGame:
     def __init__(self, rom_path: None | str = None) -> None:
         self.rom_path = rom_path
 
-        self.cart = None
+        self.cartridge = None
         program_offset=0x0600
         if self.rom_path is not None:
-            self.cart = Rom(rom_path=self.rom_path)
+            self.cartridge = Cartridge(rom_path=self.rom_path)
             program_offset=0x8600
 
-        self.memory = Memory(rom=self.cart)
+        self.memory = Memory(rom=self.cartridge)
         self.cpu = CPU(self.memory, callback=self.callback, program_offset=program_offset)
         self.last_key_pressed = None
         self.previous_screen = None
         self.exit = False
+
+        self.callback_times: list[datetime.datetime] = []
 
     @property
     def CODE(self) -> List[int]:
         if self.rom_path is None:
             return self.CODE_
 
-        if self.cart is None:
+        if self.cartridge is None:
             raise ValueError("No ROM loaded")
 
-        return self.cart.program_rom
+        return self.cartridge.program_rom
 
     async def run(self) -> None:
         pygame.init()
@@ -185,6 +189,8 @@ class SnakeGame:
 
     def callback(self) -> None:
         logger.debug(f"Opcode: {getattr(self.cpu.opcode, 'mnemonic', None)} PC: {self.cpu.program_counter}, A: {self.cpu.register_a}, X: {self.cpu.register_x}, Y: {self.cpu.register_y}, SP: {self.cpu.stack_pointer}, Status: {Flags(int(self.cpu.status))}")
+
+        self.callback_times.append(datetime.datetime.now())
 
         # read user input and write it to mem[0xFF]
         if self.last_key_pressed:

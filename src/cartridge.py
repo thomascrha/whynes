@@ -18,7 +18,7 @@ class Mirroring(str, Enum):
     FOUR_SCREEN = "Four Screen"
 
 
-class Rom:
+class Cartridge:
     def __init__(self, rom_path: FilePath) -> None:
         self.rom_path = rom_path
         self.raw = self.validate(self.rom_path)

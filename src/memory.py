@@ -1,5 +1,5 @@
 from typing import List
-from cartridge import Rom
+from cartridge import Cartridge
 
 # //  _______________ $10000  _______________
 # // | PRG-ROM       |       |               |
@@ -37,12 +37,10 @@ MEMORY_SIZE: int = 0xFFFF
 
 
 class Memory:
-    def __init__(self, rom: None | Rom = None, *args, **kwargs):
-        super(Memory, self).__init__(*args, **kwargs)
+    def __init__(self, catridge: None | Cartridge = None, *args, **kwargs):
+        self.cartridge = catridge
 
-        self.rom = rom
-
-        if self.rom is None:
+        if self.cartridge is None:
             self.data = [0] * MEMORY_SIZE
             self.cpu_vram = []
         else:
@@ -50,7 +48,7 @@ class Memory:
             self.cpu_vram = [0] * 0x800
 
     def read(self, addr: int) -> int:
-        if not self.rom:
+        if not self.cartridge:
             return self.data[addr]
 
         match addr:
@@ -66,16 +64,16 @@ class Memory:
         return 0
 
     def read_prg_rom(self, addr: int) -> int:
-        if not self.rom:
+        if not self.cartridge:
             raise RuntimeError("Unable to continue as no rom was loaded")
 
         addr -= 0x8000
-        if len(self.rom.program_rom) == 0x4000 and addr >= 0x4000:
+        if len(self.cartridge.program_rom) == 0x4000 and addr >= 0x4000:
             addr = addr % 0x4000
-        return self.rom.program_rom[addr]
+        return self.cartridge.program_rom[addr]
 
     def write(self, addr: int, data: int) -> None:
-        if not self.rom:
+        if not self.cartridge:
             self.data[addr] = data
             return
 
