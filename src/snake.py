@@ -121,14 +121,18 @@ class SnakeGame:
 
         return self.cartridge.program_rom
 
-    async def run(self) -> None:
+    def run(self) -> None:
         pygame.init()
         self.screen = pygame.display.set_mode((WIDTH*PIXEL_SIZE, HEIGHT*PIXEL_SIZE))
 
-        key_listener = threading.Thread(target=self.read_input)
+        key_listener = self.read_input_listener()
         key_listener.start()
 
+        escape_listener = self.escape_listener()
+        escape_listener.start()
+
         if not self.rom_path:
+
             self.cpu.load_and_run(self.CODE)
         else:
             self.cpu.reset()
@@ -165,7 +169,7 @@ class SnakeGame:
             case _:
                 return (0, 255, 255) # Cyan
 
-    def read_input(self) -> Optional[int]:
+    def read_input_listener(self):
         def on_press(key):
             logger.debug(key)
             if key == Key.up:
@@ -177,8 +181,16 @@ class SnakeGame:
             elif key == Key.right:
                 self.last_key_pressed = 0x64
 
-        with Listener(on_press=on_press, ) as listener:
-            listener.join()
+        listener = Listener(on_press=on_press, supress=True)
+        return listener
+
+    def escape_listener(self):
+        def on_press(key):
+            if key == Key.esc:
+                self.exit = True
+
+        listener = Listener(on_press=on_press, supress=True)
+        return listener
 
     def redraw(self, surface: pygame.Surface) -> None:
         # Scale the surface up
@@ -188,6 +200,10 @@ class SnakeGame:
         pygame.display.update()
 
     def callback(self) -> None:
+        if self.exit:
+            logger.info("Exiting...")
+            exit(0)
+
         logger.debug(f"Opcode: {getattr(self.cpu.opcode, 'mnemonic', None)} PC: {self.cpu.program_counter}, A: {self.cpu.register_a}, X: {self.cpu.register_x}, Y: {self.cpu.register_y}, SP: {self.cpu.stack_pointer}, Status: {Flags(int(self.cpu.status))}")
 
         self.callback_times.append(datetime.datetime.now())
@@ -232,15 +248,19 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.deassemble:
-        if args.rom_path:
-            SnakeGame(args.rom_path).deassemble()
+    try:
+        if args.deassemble:
+            if args.rom_path:
+                SnakeGame(args.rom_path).deassemble()
+                exit(0)
+            SnakeGame().deassemble()
             exit(0)
-        SnakeGame().deassemble()
-        exit(0)
 
-    if args.rom_path:
-        asyncio.run(SnakeGame(args.rom_path).run())
-        exit(0)
+        if args.rom_path:
+            SnakeGame(args.rom_path).run()
+            exit(0)
 
-    asyncio.run(SnakeGame().run())
+        SnakeGame().run()
+    except KeyboardInterrupt:
+        print("Exiting...")
+        exit(0)
