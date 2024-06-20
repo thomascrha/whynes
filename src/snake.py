@@ -6,12 +6,9 @@ The game is implemented in 6502 assembly and runs on a virtual 6502 CPU implemen
 By default the game will run in a pygame window, but you can also deassemble the code by passing the -d flag.
 """
 import argparse
-import asyncio
 import datetime
 import random
-import signal
-import threading
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 import numpy as np
 import pygame
 from pynput.keyboard import Key, Listener

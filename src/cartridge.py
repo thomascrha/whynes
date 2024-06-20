@@ -2,7 +2,6 @@ import sys
 from enum import Enum
 from typing import List
 from pydantic import FilePath
-from constants import CartridgeFormat, HeaderFlags6, HeaderFlags9iNES
 from logger import get_logger
 
 logger = get_logger(__name__)
