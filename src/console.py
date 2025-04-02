@@ -32,7 +32,3 @@ if __name__ == "__main__":
     console = Console(**args.__dict__)
     console.load_cartridge()
     console.cpu.run()
-
-    # if __name__ == "__main__":
-#     app = StopwatchApp()
-#     app.run()
