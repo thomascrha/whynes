@@ -9,6 +9,7 @@ import argparse
 import asyncio
 import random
 import threading
+from typing import List, Optional, Tuple
 import numpy as np
 import pygame
 from pynput.keyboard import Key, Listener
@@ -34,7 +35,7 @@ COLORS = {
 
 class SnakeGame:
     # fmt: off
-    CODE: list[int] = [
+    CODE: List[int] = [
         0x20, 0x06, 0x06,
         0x20, 0x38, 0x06,
         0x20, 0x0d, 0x06,
@@ -110,28 +111,28 @@ class SnakeGame:
     def deassemble(self):
         self.cpu.load_and_deassemble(self.CODE)
 
-    def colour(self, byte: int) -> tuple[int, int, int]:
+    def colour(self, byte: int) -> Tuple[int, int, int]:
         match byte:
             case 0:
                 return (0, 0, 0) # Black
             case 1:
                 return (255, 255, 255) # White
-            case 2 | 9:
+            case 2, 9:
                 return (128, 128, 128) # Gray
-            case 3 | 10:
+            case 3, 10:
                 return (255, 0, 0) # Red
-            case 4 | 11:
+            case 4, 11:
                 return (0, 255, 0) # Green
-            case 5 | 12:
+            case 5, 12:
                 return (0, 0, 255) # Blue
-            case 6 | 13:
+            case 6, 13:
                 return (255, 0, 255) # Magenta
-            case 7 | 14:
+            case 7, 14:
                 return (255, 255, 0) # Yellow
             case _:
                 return (0, 255, 255) # Cyan
 
-    def read_input(self) -> int | None:
+    def read_input(self) -> Optional[int]:
         def on_press(key):
             self.logger.debug(key)
             if key == Key.up:
@@ -164,8 +165,8 @@ class SnakeGame:
         # update mem[0xFE] with new Random Number
         self.cpu.memory.write(0xfe, random.randint(1, 16))
         # read mem mapped screen state
-        self.current_screen = self.cpu.memory.slice(0x0200, 0x0600)
 
+        self.current_screen = self.cpu.memory.slice(0x0200, 0x0600)
         if self.previous_screen is None or not np.array_equal(self.current_screen, self.previous_screen):
             self.previous_screen = self.current_screen
             # Create a new surface
@@ -196,6 +197,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.deassemble:
-        exit(SnakeGame().deassemble())
+        SnakeGame().deassemble()
+        exit(0)
 
     asyncio.run(SnakeGame().run())
